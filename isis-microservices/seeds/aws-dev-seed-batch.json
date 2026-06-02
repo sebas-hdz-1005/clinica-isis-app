@@ -1,0 +1,142 @@
+{
+  "isis-users-dev": [
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#117b5580-6001-70a3-e39b-a30c83c7baa0" },
+          "SK": { "S": "PROFILE" },
+          "cedula": { "S": "1023899033" },
+          "documentType": { "S": "CC" },
+          "name": { "S": "Maria Fernanda Gomez" },
+          "email": { "S": "maria@email.com" },
+          "phone": { "S": "+573001112233" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-04T10:00:00Z" },
+          "updatedAt": { "S": "2026-05-04T10:00:00Z" }
+        }
+      }
+    }
+  ],
+  "isis-benefits-dev": [
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "BENEFIT#benefit-001" },
+          "SK": { "S": "METADATA" },
+          "benefitId": { "S": "benefit-001" },
+          "title": { "S": "Descuento en consulta especializada" },
+          "description": { "S": "Beneficio disponible para consulta de medicina interna." },
+          "terms": { "S": "Aplica hasta agotar disponibilidad. No acumulable con otras promociones." },
+          "image": { "S": "https://example.com/benefits/consulta-especializada.jpg" },
+          "discountPercentage": { "N": "20" },
+          "validUntil": { "S": "2026-06-30" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-04T10:00:00Z" },
+          "updatedAt": { "S": "2026-05-04T10:00:00Z" }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "BENEFIT#benefit-002" },
+          "SK": { "S": "METADATA" },
+          "benefitId": { "S": "benefit-002" },
+          "title": { "S": "Paquete de laboratorio preventivo" },
+          "description": { "S": "Descuento en examenes de laboratorio seleccionados." },
+          "terms": { "S": "Aplica una vez por usuario durante la vigencia." },
+          "image": { "S": "https://example.com/benefits/laboratorio-preventivo.jpg" },
+          "discountPercentage": { "N": "15" },
+          "validUntil": { "S": "2026-07-31" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-04T10:00:00Z" },
+          "updatedAt": { "S": "2026-05-04T10:00:00Z" }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "BENEFIT#benefit-003" },
+          "SK": { "S": "METADATA" },
+          "benefitId": { "S": "benefit-003" },
+          "title": { "S": "Control odontologico" },
+          "description": { "S": "Beneficio para valoracion odontologica inicial." },
+          "terms": { "S": "No incluye procedimientos adicionales." },
+          "image": { "S": "https://example.com/benefits/odontologia.jpg" },
+          "discountPercentage": { "N": "25" },
+          "validUntil": { "S": "2026-08-15" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-04T10:00:00Z" },
+          "updatedAt": { "S": "2026-05-04T10:00:00Z" }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "BENEFIT#benefit-004" },
+          "SK": { "S": "METADATA" },
+          "benefitId": { "S": "benefit-004" },
+          "title": { "S": "Consulta de nutricion" },
+          "description": { "S": "Descuento para primera consulta de nutricion." },
+          "terms": { "S": "Sujeto a agenda disponible." },
+          "image": { "S": "https://example.com/benefits/nutricion.jpg" },
+          "discountPercentage": { "N": "30" },
+          "validUntil": { "S": "2026-09-30" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-04T10:00:00Z" },
+          "updatedAt": { "S": "2026-05-04T10:00:00Z" }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#117b5580-6001-70a3-e39b-a30c83c7baa0" },
+          "SK": { "S": "BENEFIT#benefit-001" },
+          "benefitId": { "S": "benefit-001" },
+          "assignedAt": { "S": "2026-05-04T10:05:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#117b5580-6001-70a3-e39b-a30c83c7baa0" },
+          "SK": { "S": "BENEFIT#benefit-002" },
+          "benefitId": { "S": "benefit-002" },
+          "assignedAt": { "S": "2026-05-04T10:06:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#117b5580-6001-70a3-e39b-a30c83c7baa0" },
+          "SK": { "S": "BENEFIT#benefit-003" },
+          "benefitId": { "S": "benefit-003" },
+          "assignedAt": { "S": "2026-05-04T10:07:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#117b5580-6001-70a3-e39b-a30c83c7baa0" },
+          "SK": { "S": "BENEFIT#benefit-004" },
+          "benefitId": { "S": "benefit-004" },
+          "assignedAt": { "S": "2026-05-04T10:08:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    }
+  ]
+}

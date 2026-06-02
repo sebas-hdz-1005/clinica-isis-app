@@ -1,0 +1,533 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Backend serverless de microservicios para la app móvil de Clínica Isis.
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - qa
+    - prod
+  CorsAllowedOrigins:
+    Type: String
+    Default: '*'
+  ContentfulSpaceId:
+    Type: String
+    Default: ''
+  ContentfulEnvironment:
+    Type: String
+    Default: master
+  ContentfulAccessToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+  ContentfulBlogContentType:
+    Type: String
+    Default: blogPost
+  SnsPlatformApplicationArn:
+    Type: String
+    Default: ''
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+    - arm64
+    CodeUri: .
+    Timeout: 15
+    MemorySize: 256
+    Environment:
+      Variables:
+        NODE_ENV:
+          Ref: EnvironmentName
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+        USERS_TABLE:
+          Ref: UsersTable
+        BENEFITS_TABLE:
+          Ref: BenefitsTable
+        NOTIFICATIONS_TABLE:
+          Ref: NotificationsTable
+        DEVICES_TABLE:
+          Ref: DevicesTable
+        COGNITO_USER_POOL_ID:
+          Ref: CognitoUserPool
+        COGNITO_CLIENT_ID:
+          Ref: CognitoUserPoolClient
+        CONTENTFUL_SPACE_ID:
+          Ref: ContentfulSpaceId
+        CONTENTFUL_ENVIRONMENT:
+          Ref: ContentfulEnvironment
+        CONTENTFUL_ACCESS_TOKEN:
+          Ref: ContentfulAccessToken
+        CONTENTFUL_BLOG_CONTENT_TYPE:
+          Ref: ContentfulBlogContentType
+        SNS_PLATFORM_APPLICATION_ARN:
+          Ref: SnsPlatformApplicationArn
+        LOG_LEVEL: info
+        CORS_ALLOWED_ORIGINS:
+          Ref: CorsAllowedOrigins
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName:
+        Ref: EnvironmentName
+      CorsConfiguration:
+        AllowOrigins:
+        - Ref: CorsAllowedOrigins
+        AllowHeaders:
+        - Content-Type
+        - Authorization
+        - x-api-key
+        AllowMethods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
+      Auth:
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer:
+                Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+              audience:
+              - Ref: CognitoUserPoolClient
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName:
+        Fn::Sub: isis-users-${EnvironmentName}
+      UsernameConfiguration:
+        CaseSensitive: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+      - Name: email
+        Required: false
+        Mutable: true
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName:
+        Fn::Sub: isis-mobile-client-${EnvironmentName}
+      UserPoolId:
+        Ref: CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+      - ALLOW_USER_PASSWORD_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: isis-users-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: PK
+        AttributeType: S
+      - AttributeName: SK
+        AttributeType: S
+      KeySchema:
+      - AttributeName: PK
+        KeyType: HASH
+      - AttributeName: SK
+        KeyType: RANGE
+  BenefitsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: isis-benefits-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      AttributeDefinitions:
+      - AttributeName: PK
+        AttributeType: S
+      - AttributeName: SK
+        AttributeType: S
+      KeySchema:
+      - AttributeName: PK
+        KeyType: HASH
+      - AttributeName: SK
+        KeyType: RANGE
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: isis-notifications-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: PK
+        AttributeType: S
+      - AttributeName: SK
+        AttributeType: S
+      KeySchema:
+      - AttributeName: PK
+        KeyType: HASH
+      - AttributeName: SK
+        KeyType: RANGE
+  DevicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: isis-devices-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: PK
+        AttributeType: S
+      - AttributeName: SK
+        AttributeType: S
+      KeySchema:
+      - AttributeName: PK
+        KeyType: HASH
+      - AttributeName: SK
+        KeyType: RANGE
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/auth/login.handler
+      Policies:
+      - Statement:
+          Effect: Allow
+          Action: cognito-idp:InitiateAuth
+          Resource: '*'
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /auth/login
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ForgotPasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/auth/forgot-password.handler
+      Policies:
+      - Statement:
+          Effect: Allow
+          Action: cognito-idp:ForgotPassword
+          Resource:
+            Fn::GetAtt:
+            - CognitoUserPool
+            - Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /auth/forgot-password
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ConfirmForgotPasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/auth/confirm-forgot-password.handler
+      Policies:
+      - Statement:
+          Effect: Allow
+          Action: cognito-idp:ConfirmForgotPassword
+          Resource:
+            Fn::GetAtt:
+            - CognitoUserPool
+            - Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /auth/confirm-forgot-password
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  LogoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/auth/logout.handler
+      Policies:
+      - Statement:
+          Effect: Allow
+          Action: cognito-idp:GlobalSignOut
+          Resource:
+            Fn::GetAtt:
+            - CognitoUserPool
+            - Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /auth/logout
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  GetMeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/users/get-me.handler
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /users/me
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ListBlogsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/blogs/list-blogs.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /blogs
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  GetBlogDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/blogs/get-blog-detail.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /blogs/{slug}
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ListMyBenefitsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/benefits/list-my-benefits.handler
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: BenefitsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /benefits/me
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  GetBenefitDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/benefits/get-benefit-detail.handler
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: BenefitsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /benefits/{benefitId}
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  AssignBenefitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/benefits/assign-benefit.handler
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: UsersTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: BenefitsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: NotificationsTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: DevicesTable
+      - Statement:
+          Effect: Allow
+          Action:
+          - sns:Publish
+          Resource: '*'
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /benefits/assign
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ListMyNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/notifications/list-my-notifications.handler
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: NotificationsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: GET
+            Path: /notifications/me
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  MarkNotificationReadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/notifications/mark-notification-read.handler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: NotificationsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: PATCH
+            Path: /notifications/{notificationId}/read
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  RegisterDeviceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/notifications/register-device.handler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DevicesTable
+      - Statement:
+          Effect: Allow
+          Action:
+          - sns:CreatePlatformEndpoint
+          Resource: '*'
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Method: POST
+            Path: /devices/register
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  SendBenefitAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/notifications/send-benefit-alert.handler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: BenefitsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: NotificationsTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: DevicesTable
+      - Statement:
+          Effect: Allow
+          Action:
+          - sns:Publish
+          Resource: '*'
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+  ProcessBenefitAssignmentStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/notifications/process-benefit-assignment-stream.handler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: BenefitsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: NotificationsTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: DevicesTable
+      - Statement:
+          Effect: Allow
+          Action:
+          - sns:Publish
+          Resource: '*'
+      Events:
+        BenefitAssignmentsStream:
+          Type: DynamoDB
+          Properties:
+            Stream:
+              Fn::GetAtt:
+              - BenefitsTable
+              - StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 5
+      CodeUri: s3://isis-microservices-artifacts-685820430282-us-east-2/e879b8496ab93980a9578aebcab58b60
+Outputs:
+  ApiBaseUrl:
+    Description: URL base de HTTP API.
+    Value:
+      Fn::Sub: https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}
+  CognitoUserPoolId:
+    Value:
+      Ref: CognitoUserPool
+  CognitoClientId:
+    Value:
+      Ref: CognitoUserPoolClient
+  UsersTableName:
+    Value:
+      Ref: UsersTable
+  BenefitsTableName:
+    Value:
+      Ref: BenefitsTable
+  NotificationsTableName:
+    Value:
+      Ref: NotificationsTable
+  DevicesTableName:
+    Value:
+      Ref: DevicesTable

@@ -1,0 +1,70 @@
+{
+  "isis-users-dev": [
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#710be540-60d1-7017-79b2-d5e517934928" },
+          "SK": { "S": "PROFILE" },
+          "cedula": { "S": "123456789" },
+          "documentType": { "S": "CC" },
+          "name": { "S": "Usuario Prueba Clinica Isis" },
+          "email": { "S": "test123456789@email.com" },
+          "phone": { "S": "+573001234567" },
+          "status": { "S": "ACTIVE" },
+          "createdAt": { "S": "2026-05-05T17:36:00Z" },
+          "updatedAt": { "S": "2026-05-05T17:36:00Z" }
+        }
+      }
+    }
+  ],
+  "isis-benefits-dev": [
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#710be540-60d1-7017-79b2-d5e517934928" },
+          "SK": { "S": "BENEFIT#benefit-001" },
+          "benefitId": { "S": "benefit-001" },
+          "assignedAt": { "S": "2026-05-05T17:37:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#710be540-60d1-7017-79b2-d5e517934928" },
+          "SK": { "S": "BENEFIT#benefit-002" },
+          "benefitId": { "S": "benefit-002" },
+          "assignedAt": { "S": "2026-05-05T17:38:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#710be540-60d1-7017-79b2-d5e517934928" },
+          "SK": { "S": "BENEFIT#benefit-003" },
+          "benefitId": { "S": "benefit-003" },
+          "assignedAt": { "S": "2026-05-05T17:39:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "PK": { "S": "USER#710be540-60d1-7017-79b2-d5e517934928" },
+          "SK": { "S": "BENEFIT#benefit-004" },
+          "benefitId": { "S": "benefit-004" },
+          "assignedAt": { "S": "2026-05-05T17:40:00Z" },
+          "viewed": { "BOOL": false },
+          "notified": { "BOOL": false }
+        }
+      }
+    }
+  ]
+}

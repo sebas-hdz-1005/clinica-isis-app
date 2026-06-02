@@ -1,0 +1,25 @@
+{
+  "name": "isis-microservices",
+  "version": "1.0.0",
+  "description": "Backend serverless de microservicios para la app móvil de Clínica Isis.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test",
+    "build": "sam build",
+    "deploy:guided": "sam deploy --guided",
+    "lint": "node scripts/check-syntax.js",
+    "users:import": "node scripts/import-users-from-csv.js",
+    "contentful:seed": "node scripts/seed-contentful-blogs.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.800.0",
+    "@aws-sdk/client-dynamodb": "^3.800.0",
+    "@aws-sdk/client-sns": "^3.800.0",
+    "@aws-sdk/lib-dynamodb": "^3.800.0"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,108 @@
+{
+  "users": [
+    {
+      "PK": "USER#cognito-sub-id",
+      "SK": "PROFILE",
+      "cedula": "1023899033",
+      "documentType": "CC",
+      "name": "Maria Fernanda Gomez",
+      "email": "maria@email.com",
+      "phone": "+573001112233",
+      "status": "ACTIVE",
+      "createdAt": "2026-05-04T10:00:00Z",
+      "updatedAt": "2026-05-04T10:00:00Z"
+    }
+  ],
+  "benefitMetadata": [
+    {
+      "PK": "BENEFIT#benefit-001",
+      "SK": "METADATA",
+      "benefitId": "benefit-001",
+      "title": "Descuento en consulta especializada",
+      "description": "Beneficio disponible para consulta de medicina interna.",
+      "terms": "Aplica hasta agotar disponibilidad. No acumulable con otras promociones.",
+      "image": "https://example.com/benefits/consulta-especializada.jpg",
+      "discountPercentage": 20,
+      "validUntil": "2026-06-30",
+      "status": "ACTIVE",
+      "createdAt": "2026-05-04T10:00:00Z",
+      "updatedAt": "2026-05-04T10:00:00Z"
+    },
+    {
+      "PK": "BENEFIT#benefit-002",
+      "SK": "METADATA",
+      "benefitId": "benefit-002",
+      "title": "Paquete de laboratorio preventivo",
+      "description": "Descuento en examenes de laboratorio seleccionados.",
+      "terms": "Aplica una vez por usuario durante la vigencia.",
+      "image": "https://example.com/benefits/laboratorio-preventivo.jpg",
+      "discountPercentage": 15,
+      "validUntil": "2026-07-31",
+      "status": "ACTIVE",
+      "createdAt": "2026-05-04T10:00:00Z",
+      "updatedAt": "2026-05-04T10:00:00Z"
+    },
+    {
+      "PK": "BENEFIT#benefit-003",
+      "SK": "METADATA",
+      "benefitId": "benefit-003",
+      "title": "Control odontologico",
+      "description": "Beneficio para valoracion odontologica inicial.",
+      "terms": "No incluye procedimientos adicionales.",
+      "image": "https://example.com/benefits/odontologia.jpg",
+      "discountPercentage": 25,
+      "validUntil": "2026-08-15",
+      "status": "ACTIVE",
+      "createdAt": "2026-05-04T10:00:00Z",
+      "updatedAt": "2026-05-04T10:00:00Z"
+    },
+    {
+      "PK": "BENEFIT#benefit-004",
+      "SK": "METADATA",
+      "benefitId": "benefit-004",
+      "title": "Consulta de nutricion",
+      "description": "Descuento para primera consulta de nutricion.",
+      "terms": "Sujeto a agenda disponible.",
+      "image": "https://example.com/benefits/nutricion.jpg",
+      "discountPercentage": 30,
+      "validUntil": "2026-09-30",
+      "status": "ACTIVE",
+      "createdAt": "2026-05-04T10:00:00Z",
+      "updatedAt": "2026-05-04T10:00:00Z"
+    }
+  ],
+  "benefitAssignments": [
+    {
+      "PK": "USER#cognito-sub-id",
+      "SK": "BENEFIT#benefit-001",
+      "benefitId": "benefit-001",
+      "assignedAt": "2026-05-04T10:05:00Z",
+      "viewed": false,
+      "notified": false
+    },
+    {
+      "PK": "USER#cognito-sub-id",
+      "SK": "BENEFIT#benefit-002",
+      "benefitId": "benefit-002",
+      "assignedAt": "2026-05-04T10:06:00Z",
+      "viewed": false,
+      "notified": false
+    },
+    {
+      "PK": "USER#cognito-sub-id",
+      "SK": "BENEFIT#benefit-003",
+      "benefitId": "benefit-003",
+      "assignedAt": "2026-05-04T10:07:00Z",
+      "viewed": false,
+      "notified": false
+    },
+    {
+      "PK": "USER#cognito-sub-id",
+      "SK": "BENEFIT#benefit-004",
+      "benefitId": "benefit-004",
+      "assignedAt": "2026-05-04T10:08:00Z",
+      "viewed": false,
+      "notified": false
+    }
+  ]
+}

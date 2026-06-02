@@ -1,0 +1,55 @@
+{
+  "name": "blog",
+  "displayField": "title",
+  "fields": [
+    {
+      "id": "title",
+      "name": "title",
+      "type": "Symbol",
+      "required": true,
+      "localized": false
+    },
+    {
+      "id": "slug",
+      "name": "slug",
+      "type": "Symbol",
+      "required": true,
+      "localized": false,
+      "validations": [
+        {
+          "unique": true
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "name": "content",
+      "type": "RichText",
+      "required": true,
+      "localized": false
+    },
+    {
+      "id": "image",
+      "name": "image",
+      "type": "Link",
+      "required": false,
+      "localized": false,
+      "linkType": "Asset",
+      "validations": [
+        {
+          "linkMimetypeGroup": [
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "createdAt",
+      "name": "createdAt",
+      "type": "Date",
+      "required": true,
+      "localized": false
+    }
+  ]
+}
+

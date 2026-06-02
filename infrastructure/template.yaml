@@ -1,0 +1,301 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Clinica ISIS - Backend serverless para validacion de pacientes
+
+Resources:
+  PacientesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Pacientes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: cedula
+          AttributeType: S
+      KeySchema:
+        - AttributeName: cedula
+          KeyType: HASH
+
+  ValidarPacienteLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/clinica-isis-validar-paciente
+      RetentionInDays: 7
+
+  SeedPacientesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/clinica-isis-seed-pacientes
+      RetentionInDays: 7
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/apigateway/clinica-isis-http-api
+      RetentionInDays: 7
+
+  ValidarPacienteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: clinica-isis-validar-paciente-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: validar-paciente-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !GetAtt PacientesTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/clinica-isis-validar-paciente:*
+
+  SeedPacientesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: clinica-isis-seed-pacientes-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: seed-pacientes-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt PacientesTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/clinica-isis-seed-pacientes:*
+
+  ValidarPacienteFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: clinica-isis-validar-paciente
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt ValidarPacienteRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PacientesTable
+      Code:
+        ZipFile: |
+          const { DynamoDBClient, GetItemCommand } = require('@aws-sdk/client-dynamodb');
+
+          const client = new DynamoDBClient({});
+
+          exports.handler = async (event) => {
+            const cedula = event?.queryStringParameters?.cedula;
+            const headers = {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET,OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type'
+            };
+
+            if (event?.requestContext?.http?.method === 'OPTIONS') {
+              return { statusCode: 204, headers, body: '' };
+            }
+
+            if (!cedula) {
+              return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ message: 'La cedula es obligatoria.' })
+              };
+            }
+
+            try {
+              const result = await client.send(
+                new GetItemCommand({
+                  TableName: process.env.TABLE_NAME,
+                  Key: { cedula: { S: cedula } }
+                })
+              );
+
+              if (result.Item) {
+                return {
+                  statusCode: 200,
+                  headers,
+                  body: JSON.stringify({ exists: true, cedula })
+                };
+              }
+
+              return {
+                statusCode: 401,
+                headers,
+                body: JSON.stringify({ exists: false, cedula })
+              };
+            } catch (error) {
+              console.error('Error consultando DynamoDB', error);
+              return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ message: 'Error interno del servidor.' })
+              };
+            }
+          };
+
+  SeedPacientesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: clinica-isis-seed-pacientes
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt SeedPacientesRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PacientesTable
+      Code:
+        ZipFile: |
+          const { DynamoDBClient, PutItemCommand } = require('@aws-sdk/client-dynamodb');
+          const https = require('https');
+          const { URL } = require('url');
+
+          const client = new DynamoDBClient({});
+
+          function sendResponse(event, context, status, data) {
+            return new Promise((resolve, reject) => {
+              const responseBody = JSON.stringify({
+                Status: status,
+                Reason: `Ver detalles en CloudWatch: ${context.logStreamName}`,
+                PhysicalResourceId: 'PacientesSeedRecord',
+                StackId: event.StackId,
+                RequestId: event.RequestId,
+                LogicalResourceId: event.LogicalResourceId,
+                Data: data
+              });
+
+              const responseUrl = new URL(event.ResponseURL);
+              const request = https.request(
+                {
+                  hostname: responseUrl.hostname,
+                  path: `${responseUrl.pathname}${responseUrl.search}`,
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': '',
+                    'Content-Length': Buffer.byteLength(responseBody)
+                  }
+                },
+                (response) => {
+                  response.on('data', () => {});
+                  response.on('end', resolve);
+                }
+              );
+
+              request.on('error', reject);
+              request.write(responseBody);
+              request.end();
+            });
+          }
+
+          exports.handler = async (event, context) => {
+            console.log('Custom resource event', JSON.stringify(event));
+
+            if (event.RequestType === 'Delete') {
+              await sendResponse(event, context, 'SUCCESS', { seeded: false });
+              return;
+            }
+
+            try {
+              await client.send(
+                new PutItemCommand({
+                  TableName: process.env.TABLE_NAME,
+                  Item: {
+                    cedula: { S: '1234567890' },
+                    nombre: { S: 'Paciente de prueba' }
+                  }
+                })
+              );
+
+              await sendResponse(event, context, 'SUCCESS', { seeded: true, cedula: '1234567890' });
+            } catch (error) {
+              console.error('Error sembrando DynamoDB', error);
+              await sendResponse(event, context, 'FAILED', { error: error.message });
+            }
+          };
+
+  SeedPacientesCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt SeedPacientesFunction.Arn
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: clinica-isis-http-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+        MaxAge: 86400
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !GetAtt ValidarPacienteFunction.Arn
+      PayloadFormatVersion: '2.0'
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: GET /validar
+      Target: !Sub integrations/${HttpApiIntegration}
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: >-
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ValidarPacienteFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/GET/validar
+
+Outputs:
+  ApiBaseUrl:
+    Description: URL base del API Gateway HTTP
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+
+  ValidarEndpoint:
+    Description: Endpoint para validar cedula
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/validar
+
