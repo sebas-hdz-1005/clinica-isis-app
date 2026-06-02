@@ -1,9 +1,11 @@
 node_modules/
 .next/
+out/
 .env
 .env.local
 coverage/
 dist/
 *.csv
+*.zip
 !*.example.csv
 !*.sample.csv
