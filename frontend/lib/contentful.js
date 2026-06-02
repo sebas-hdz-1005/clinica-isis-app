@@ -77,6 +77,8 @@ function mapBlogEntry(entry, assetMap) {
   const slug = normalizeSlug(fields.slug, entry.sys.id);
   const urlPath = `/blog/${slug}/`;
   const siteUrl = getSiteUrl();
+  const publishedAt = fields.publishedAt || fields.createdAt || null;
+  const summary = fields.summary || '';
 
   return {
     id: entry.sys.id,
@@ -85,8 +87,8 @@ function mapBlogEntry(entry, assetMap) {
     urlPath,
     absoluteUrl: siteUrl ? `${siteUrl}${urlPath}` : '',
     content,
-    createdAt: fields.createdAt || null,
-    excerpt: getExcerpt(content),
+    createdAt: publishedAt,
+    excerpt: summary || getExcerpt(content),
     readingTime: getReadingTime(content),
     category: 'Noticias',
     image: asset
@@ -105,7 +107,7 @@ async function getBlogEntries() {
     throw new Error('Faltan variables de entorno de Contentful.');
   }
 
-  const url = `${CONTENTFUL_BASE_URL}/spaces/${spaceId}/environments/${environment}/entries?content_type=blog&include=2&order=-fields.createdAt`;
+  const url = `${CONTENTFUL_BASE_URL}/spaces/${spaceId}/environments/${environment}/entries?content_type=blogPost&include=2&order=-fields.publishedAt`;
   const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`
