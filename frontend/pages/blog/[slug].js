@@ -38,7 +38,7 @@ export default function BlogDetailPage({ post }) {
       <main className="page">
         <section className="blog-shell">
           <p className="error">No encontramos el articulo solicitado.</p>
-          <a className="back-link" href="/blog.html">
+          <a className="back-link" href="/blog/">
             Volver al blog
           </a>
         </section>
@@ -48,16 +48,25 @@ export default function BlogDetailPage({ post }) {
 
   return (
     <main className="page">
-      <section className="blog-shell">
-        <a className="back-link" href="/blog.html">
+      <section className="blog-shell article-shell">
+        <a className="back-link" href="/blog/">
           Volver al blog
         </a>
 
-        <article className="article-detail article-page">
+        <article className="article-detail article-page article-story">
+          <div className="news-meta editorial-meta article-meta">
+            <span className="brand-pill">
+              <span className="brand-mark" />
+              Clinica Isis
+            </span>
+            <span className="meta-dot">|</span>
+            <span>{post.createdAt ? new Date(post.createdAt).toLocaleDateString('es-CO') : 'Sin fecha'}</span>
+          </div>
+
           <p className="eyebrow">{post.category}</p>
           <h1>{post.title}</h1>
           <p className="post-date">
-            {post.createdAt ? new Date(post.createdAt).toLocaleDateString('es-CO') : 'Sin fecha'}
+            Tiempo de lectura
             {' | '}
             {post.readingTime}
           </p>

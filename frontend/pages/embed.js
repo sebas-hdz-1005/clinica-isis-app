@@ -6,7 +6,7 @@ export default function EmbedPage() {
         <h1>Blog embebible</h1>
         <iframe
           title="Clinica ISIS Blog"
-          src="/blog/embed.html"
+          src="/blog/embed/"
           className="embed-frame"
           loading="lazy"
         />

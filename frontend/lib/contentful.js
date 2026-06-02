@@ -75,7 +75,7 @@ function mapBlogEntry(entry, assetMap) {
   const asset = imageId ? assetMap[imageId] : null;
   const content = fields.content || null;
   const slug = normalizeSlug(fields.slug, entry.sys.id);
-  const urlPath = `/blog/${slug}.html`;
+  const urlPath = `/blog/${slug}/`;
   const siteUrl = getSiteUrl();
 
   return {
