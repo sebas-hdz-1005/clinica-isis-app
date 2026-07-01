@@ -22,10 +22,10 @@ export default function BlogEmbedPage({ posts, error }) {
   return (
     <main className="embed-page">
       <section className="embed-wrapper blog-feed-shell">
-        <div className="blog-header compact-header">
+        <div className="blog-header compact-header elevated-blog-header">
           <p className="eyebrow">Clinica Isis</p>
-          <h1>Blog de bienestar</h1>
-          <p className="lead">Vista embebible del contenido publicado en Contentful.</p>
+          <h1>Blog y contenidos institucionales</h1>
+          <p className="lead">Vista embebible del contenido institucional y publicado en Contentful.</p>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -50,14 +50,15 @@ export default function BlogEmbedPage({ posts, error }) {
                       <span className="brand-mark" />
                       Clinica Isis
                     </span>
-                    <span className="meta-dot">·</span>
+                    <span className="meta-dot">|</span>
                     <span>{getRelativeDate(post.createdAt)}</span>
                   </div>
 
+                  <p className="news-category">{post.category}</p>
                   <h2>{post.title}</h2>
                   <p className="news-excerpt">{post.excerpt}</p>
                   <div className="card-footer">
-                    <span className="news-link">leer mas</span>
+                    <span className="news-link">Leer articulo</span>
                     <span className="news-reading">{post.readingTime}</span>
                   </div>
                 </div>

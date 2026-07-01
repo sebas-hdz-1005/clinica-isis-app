@@ -22,10 +22,17 @@ export default function BlogIndexPage({ posts, error, embedded }) {
   return (
     <main className={embedded ? 'embed-page' : 'page'}>
       <section className={embedded ? 'embed-wrapper blog-feed-shell' : 'blog-shell blog-feed-shell'}>
-        <div className="blog-header compact-header">
+        <div className="blog-header compact-header elevated-blog-header">
           <p className="eyebrow">Clinica Isis</p>
-          <h1>Blog de bienestar</h1>
-          <p className="lead">Contenido ligero, legible y optimizado para mobile con una URL propia por articulo.</p>
+          <h1>Blog y contenidos institucionales</h1>
+          <p className="lead">
+            Noticias, preguntas frecuentes y politicas publicadas en un formato mas claro, ordenado y facil de consultar.
+          </p>
+          <div className="blog-header-badges">
+            <span>Lectura rapida</span>
+            <span>URLs publicas</span>
+            <span>Contenido institucional</span>
+          </div>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -50,14 +57,15 @@ export default function BlogIndexPage({ posts, error, embedded }) {
                       <span className="brand-mark" />
                       Clinica Isis
                     </span>
-                    <span className="meta-dot">·</span>
+                    <span className="meta-dot">|</span>
                     <span>{getRelativeDate(post.createdAt)}</span>
                   </div>
 
+                  <p className="news-category">{post.category}</p>
                   <h2>{post.title}</h2>
                   <p className="news-excerpt">{post.excerpt}</p>
                   <div className="card-footer">
-                    <span className="news-link">leer mas</span>
+                    <span className="news-link">Leer articulo</span>
                     <span className="news-reading">{post.readingTime}</span>
                   </div>
                 </div>

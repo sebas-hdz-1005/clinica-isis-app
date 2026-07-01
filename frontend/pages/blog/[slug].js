@@ -10,15 +10,23 @@ function renderRichText(node) {
   }
 
   if (node.nodeType === 'paragraph') {
-    return <p>{node.content?.map((child, index) => renderRichText({ ...child, key: index }))}</p>;
+    return <p>{node.content?.map((child, index) => <span key={index}>{renderRichText(child)}</span>)}</p>;
   }
 
   if (node.nodeType === 'heading-2') {
-    return <h2>{node.content?.map((child, index) => renderRichText({ ...child, key: index }))}</h2>;
+    return <h2>{node.content?.map((child, index) => <span key={index}>{renderRichText(child)}</span>)}</h2>;
+  }
+
+  if (node.nodeType === 'heading-3') {
+    return <h3>{node.content?.map((child, index) => <span key={index}>{renderRichText(child)}</span>)}</h3>;
   }
 
   if (node.nodeType === 'unordered-list') {
     return <ul>{node.content?.map((child, index) => <li key={index}>{renderRichText(child)}</li>)}</ul>;
+  }
+
+  if (node.nodeType === 'ordered-list') {
+    return <ol>{node.content?.map((child, index) => <li key={index}>{renderRichText(child)}</li>)}</ol>;
   }
 
   if (node.nodeType === 'list-item') {
@@ -30,6 +38,17 @@ function renderRichText(node) {
   }
 
   return node.content?.map((child, index) => <span key={index}>{renderRichText(child)}</span>) || null;
+}
+
+function formatPublishedDate(dateValue) {
+  if (!dateValue) {
+    return 'Sin fecha';
+  }
+
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'long',
+    timeZone: 'UTC'
+  }).format(new Date(dateValue));
 }
 
 export default function BlogDetailPage({ post }) {
@@ -54,23 +73,26 @@ export default function BlogDetailPage({ post }) {
         </a>
 
         <article className="article-detail article-page article-story">
-          <div className="news-meta editorial-meta article-meta">
-            <span className="brand-pill">
-              <span className="brand-mark" />
-              Clinica Isis
-            </span>
-            <span className="meta-dot">|</span>
-            <span>{post.createdAt ? new Date(post.createdAt).toLocaleDateString('es-CO') : 'Sin fecha'}</span>
-          </div>
+          <header className="article-hero-panel">
+            <div className="news-meta editorial-meta article-meta">
+              <span className="brand-pill">
+                <span className="brand-mark" />
+                Clinica Isis
+              </span>
+              <span className="meta-dot">|</span>
+              <span>{formatPublishedDate(post.createdAt)}</span>
+            </div>
 
-          <p className="eyebrow">{post.category}</p>
-          <h1>{post.title}</h1>
-          <p className="post-date">
-            Tiempo de lectura
-            {' | '}
-            {post.readingTime}
-          </p>
-          <p className="article-url">{post.absoluteUrl || post.urlPath}</p>
+            <p className="eyebrow">{post.category}</p>
+            <h1>{post.title}</h1>
+            <p className="article-summary">{post.excerpt}</p>
+
+            <div className="article-topline">
+              <p className="post-date">Tiempo de lectura: {post.readingTime}</p>
+              <p className="article-url">{post.absoluteUrl || post.urlPath}</p>
+            </div>
+          </header>
+
           {post.image?.url ? (
             <img
               className="article-detail-image"
@@ -78,7 +100,8 @@ export default function BlogDetailPage({ post }) {
               alt={post.image.title || post.title}
             />
           ) : null}
-          <div className="rich-text">{renderRichText(post.content)}</div>
+
+          <div className="rich-text article-rich-text">{renderRichText(post.content)}</div>
         </article>
       </section>
     </main>

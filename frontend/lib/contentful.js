@@ -1,4 +1,5 @@
 const CONTENTFUL_BASE_URL = 'https://cdn.contentful.com';
+const { localBlogPosts } = require('./local-blog-posts');
 
 function getConfig() {
   return {
@@ -90,7 +91,7 @@ function mapBlogEntry(entry, assetMap) {
     createdAt: publishedAt,
     excerpt: summary || getExcerpt(content),
     readingTime: getReadingTime(content),
-    category: 'Noticias',
+    category: fields.category || 'Noticias',
     image: asset
       ? {
           title: asset.fields?.title || '',
@@ -100,30 +101,59 @@ function mapBlogEntry(entry, assetMap) {
   };
 }
 
+function mergeEntries(remoteEntries = [], fallbackEntries = []) {
+  const merged = [...remoteEntries];
+  const knownSlugs = new Set(remoteEntries.map((entry) => entry.slug));
+
+  fallbackEntries.forEach((entry) => {
+    if (!knownSlugs.has(entry.slug)) {
+      merged.push(entry);
+    }
+  });
+
+  return merged.sort((left, right) => {
+    const leftDate = new Date(left.createdAt || 0).getTime();
+    const rightDate = new Date(right.createdAt || 0).getTime();
+    return rightDate - leftDate;
+  });
+}
+
 async function getBlogEntries() {
   const { spaceId, environment, accessToken } = getConfig();
 
   if (!spaceId || !accessToken) {
+    if (localBlogPosts.length) {
+      return mergeEntries([], localBlogPosts);
+    }
+
     throw new Error('Faltan variables de entorno de Contentful.');
   }
 
   const url = `${CONTENTFUL_BASE_URL}/spaces/${spaceId}/environments/${environment}/entries?content_type=blogPost&include=2&order=-fields.publishedAt`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
-    cache: 'no-store'
-  });
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      },
+      cache: 'no-store'
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Contentful respondio ${response.status}: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Contentful respondio ${response.status}: ${errorText}`);
+    }
+
+    const payload = await response.json();
+    const assetMap = getAssetMap(payload.includes);
+    const remoteEntries = (payload.items || []).map((entry) => mapBlogEntry(entry, assetMap));
+    return mergeEntries(remoteEntries, localBlogPosts);
+  } catch (error) {
+    if (localBlogPosts.length) {
+      return mergeEntries([], localBlogPosts);
+    }
+
+    throw error;
   }
-
-  const payload = await response.json();
-  const assetMap = getAssetMap(payload.includes);
-
-  return (payload.items || []).map((entry) => mapBlogEntry(entry, assetMap));
 }
 
 async function getBlogEntryBySlug(slug) {

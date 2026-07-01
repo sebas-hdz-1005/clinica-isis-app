@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { useState } from 'react';
 
 export default function HomePage() {
@@ -36,8 +37,15 @@ export default function HomePage() {
     <main className="page">
       <section className="card">
         <p className="eyebrow">Clinica ISIS</p>
-        <h1>Validacion de pacientes</h1>
-        <p className="lead">Consulta el endpoint serverless en AWS usando una cedula.</p>
+        <h1>Portal operativo</h1>
+        <p className="lead">
+          Accede al validador de pacientes, al dashboard administrativo de citas y al blog institucional desde un mismo frente.
+        </p>
+
+        <div className="inline-link-row quick-links-row">
+          <Link href="/dashboard/citas/">Abrir dashboard de citas</Link>
+          <Link href="/blog/">Ver blog institucional</Link>
+        </div>
 
         <label htmlFor="cedula">Cedula</label>
         <input
@@ -60,4 +68,3 @@ export default function HomePage() {
     </main>
   );
 }
-
