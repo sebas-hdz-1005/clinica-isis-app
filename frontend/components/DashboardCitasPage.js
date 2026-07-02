@@ -811,11 +811,16 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
             />
 
             <label htmlFor="campaign-type">Tipo de envio</label>
-            <input
+            <select
               id="campaign-type"
               value={campaign.type}
               onChange={(event) => setCampaign((current) => ({ ...current, type: event.target.value }))}
-            />
+            >
+              <option value="agenda">Agenda / citas</option>
+              <option value="benefits">Beneficios del paciente</option>
+              <option value="pedometer">Podometro</option>
+              <option value="general">General / blogs</option>
+            </select>
 
             <button type="submit" disabled={sendingCampaign}>
               {sendingCampaign ? 'Enviando...' : 'Enviar alerta'}
