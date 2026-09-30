@@ -26,9 +26,78 @@ Parameters:
   ContentfulBlogContentType:
     Type: String
     Default: blogPost
+  PublicSiteUrl:
+    Type: String
+    Default: ""
   SnsPlatformApplicationArn:
     Type: String
     Default: ""
+  AgendaBucketName:
+    Type: String
+    Default: clinica-isis-agendas
+  AgendaSlotsTableName:
+    Type: String
+    Default: AgendaSlots
+  AppointmentsTableName:
+    Type: String
+    Default: Appointments
+  AgendaImportsTableName:
+    Type: String
+    Default: AgendaImports
+  AppointmentsNotificationEmail:
+    Type: String
+    Default: notificacionesapp@clinicaisis.com
+  NotificationsEmailSource:
+    Type: String
+    Default: notificacionesapp@clinicaisis.com
+  AppointmentsApiBaseUrl:
+    Type: String
+    Default: "https://y2ylrfyuy1.execute-api.us-east-2.amazonaws.com"
+  SoftwareMedicoBaseUrl:
+    Type: String
+    Default: "https://clinicaisis.softwaremedico.com.co/api/v1/"
+  SoftwareMedicoUsername:
+    Type: String
+    Default: ""
+    NoEcho: true
+  SoftwareMedicoPassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+  SoftwareMedicoTimeoutMs:
+    Type: Number
+    Default: 10000
+  SoftwareMedicoTokenTtlSeconds:
+    Type: Number
+    Default: 3000
+  SoftwareMedicoCitaTipoId:
+    Type: String
+    Default: ""
+  SoftwareMedicoSedeId:
+    Type: String
+    Default: ""
+  DefaultSlotMinutes:
+    Type: Number
+    Default: 30
+  DefaultAppointmentCost:
+    Type: Number
+    Default: 2000
+  DefaultAppointmentCurrency:
+    Type: String
+    Default: COP
+  FirebaseProjectId:
+    Type: String
+    Default: ""
+  FirebaseClientEmail:
+    Type: String
+    Default: ""
+  FirebasePrivateKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  FcmDefaultTopic:
+    Type: String
+    Default: all_users
 
 Globals:
   Function:
@@ -46,12 +115,30 @@ Globals:
         BENEFITS_TABLE: !Ref BenefitsTable
         NOTIFICATIONS_TABLE: !Ref NotificationsTable
         DEVICES_TABLE: !Ref DevicesTable
-        COGNITO_USER_POOL_ID: !Ref CognitoUserPool
-        COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+        AGENDA_SLOTS_TABLE: !Ref AgendaSlotsTable
+        APPOINTMENTS_TABLE: !Ref AppointmentsTable
+        AGENDA_IMPORTS_TABLE: !Ref AgendaImportsTable
+        AGENDA_BUCKET_NAME: !Ref AgendaBucket
+        APPOINTMENTS_NOTIFICATION_EMAIL: !Ref AppointmentsNotificationEmail
+        NOTIFICATIONS_EMAIL_SOURCE: !Ref NotificationsEmailSource
+        APPOINTMENTS_API_BASE_URL: !Ref AppointmentsApiBaseUrl
+        SOFTWARE_MEDICO_BASE_URL: !Ref SoftwareMedicoBaseUrl
+        SOFTWARE_MEDICO_TIMEOUT_MS: !Ref SoftwareMedicoTimeoutMs
+        SOFTWARE_MEDICO_TOKEN_TTL_SECONDS: !Ref SoftwareMedicoTokenTtlSeconds
+        SOFTWARE_MEDICO_CITA_TIPO_ID: !Ref SoftwareMedicoCitaTipoId
+        SOFTWARE_MEDICO_SEDE_ID: !Ref SoftwareMedicoSedeId
+        DEFAULT_SLOT_MINUTES: !Ref DefaultSlotMinutes
+        DEFAULT_APPOINTMENT_COST: !Ref DefaultAppointmentCost
+        DEFAULT_APPOINTMENT_CURRENCY: !Ref DefaultAppointmentCurrency
+        FIREBASE_PROJECT_ID: !Ref FirebaseProjectId
+        FIREBASE_CLIENT_EMAIL: !Ref FirebaseClientEmail
+        FIREBASE_PRIVATE_KEY: !Ref FirebasePrivateKey
+        FCM_DEFAULT_TOPIC: !Ref FcmDefaultTopic
         CONTENTFUL_SPACE_ID: !Ref ContentfulSpaceId
         CONTENTFUL_ENVIRONMENT: !Ref ContentfulEnvironment
         CONTENTFUL_ACCESS_TOKEN: !Ref ContentfulAccessToken
         CONTENTFUL_BLOG_CONTENT_TYPE: !Ref ContentfulBlogContentType
+        PUBLIC_SITE_URL: !Ref PublicSiteUrl
         SNS_PLATFORM_APPLICATION_ARN: !Ref SnsPlatformApplicationArn
         LOG_LEVEL: info
         CORS_ALLOWED_ORIGINS: !Ref CorsAllowedOrigins
@@ -85,6 +172,8 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "isis-users-${EnvironmentName}"
+      LambdaConfig:
+        PreTokenGeneration: !GetAtt PreTokenGenerationFunction.Arn
       UsernameConfiguration:
         CaseSensitive: false
       AdminCreateUserConfig:
@@ -100,6 +189,22 @@ Resources:
         - Name: email
           Required: false
           Mutable: true
+
+  PreTokenGenerationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/auth/pre-token-generation.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  PreTokenGenerationInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PreTokenGenerationFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CognitoUserPool.Arn
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -129,11 +234,20 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: cedula
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CedulaIndex
+          KeySchema:
+            - AttributeName: cedula
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   BenefitsTable:
     Type: AWS::DynamoDB::Table
@@ -185,10 +299,112 @@ Resources:
         - AttributeName: SK
           KeyType: RANGE
 
+  AgendaBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref AgendaBucketName
+
+  AgendaSlotsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgendaSlotsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: monthKey
+          AttributeType: S
+        - AttributeName: slotId
+          AttributeType: S
+        - AttributeName: startsAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: slotId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: MonthIndex
+          KeySchema:
+            - AttributeName: monthKey
+              KeyType: HASH
+            - AttributeName: startsAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AppointmentsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: appointmentDateTime
+          AttributeType: S
+        - AttributeName: appointmentId
+          AttributeType: S
+        - AttributeName: cedula
+          AttributeType: S
+        - AttributeName: statusMonthKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: appointmentId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PatientAppointmentsIndex
+          KeySchema:
+            - AttributeName: cedula
+              KeyType: HASH
+            - AttributeName: appointmentDateTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StatusMonthIndex
+          KeySchema:
+            - AttributeName: statusMonthKey
+              KeyType: HASH
+            - AttributeName: appointmentDateTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  AgendaImportsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgendaImportsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: importId
+          AttributeType: S
+        - AttributeName: monthKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: importId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: MonthIndex
+          KeySchema:
+            - AttributeName: monthKey
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
   LoginFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/functions/auth/login.handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       Policies:
         - Statement:
             Effect: Allow
@@ -206,6 +422,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/functions/auth/forgot-password.handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       Policies:
         - Statement:
             Effect: Allow
@@ -223,6 +443,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/functions/auth/confirm-forgot-password.handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       Policies:
         - Statement:
             Effect: Allow
@@ -240,6 +464,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/functions/auth/logout.handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       Policies:
         - Statement:
             Effect: Allow
@@ -260,6 +488,14 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !Sub ${AppointmentsTable.Arn}/index/*
       Events:
         Api:
           Type: HttpApi
@@ -267,6 +503,539 @@ Resources:
             ApiId: !Ref HttpApi
             Method: GET
             Path: /users/me
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ValidateByCedulaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/users/validate-by-cedula.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /validar
+
+  GetAppointmentsAvailabilityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/get-availability.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_BASE_URL: !Ref SoftwareMedicoBaseUrl
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+          SOFTWARE_MEDICO_TIMEOUT_MS: !Ref SoftwareMedicoTimeoutMs
+          SOFTWARE_MEDICO_TOKEN_TTL_SECONDS: !Ref SoftwareMedicoTokenTtlSeconds
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /appointments/availability
+
+  GetSoftwareMedicoSpecialtiesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/get-software-medico-specialties.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /api/especialidades
+
+  GetSoftwareMedicoSpecialistsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/get-software-medico-specialists.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /api/especialidades/{especialidadId}/medicos
+
+  GetSoftwareMedicoAgendaDisponibleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/get-agenda-disponible.handler
+      Timeout: 45
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /api/agenda/disponible
+        CompatibilityApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /agenda/disponible
+
+  GetPatientAppointmentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/get-patient.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !Sub ${AppointmentsTable.Arn}/index/*
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /appointments/patient
+
+  BookAppointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/book.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !GetAtt AppointmentsTable.Arn
+              - !GetAtt UsersTable.Arn
+              - !Sub ${AppointmentsTable.Arn}/index/*
+              - !Sub ${UsersTable.Arn}/index/*
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /appointments/book
+
+  CreatePreappointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/prebook.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
+              - !GetAtt AppointmentsTable.Arn
+              - !GetAtt UsersTable.Arn
+              - !Sub ${UsersTable.Arn}/index/*
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /preagendamiento
+
+  CancelAppointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/appointments/cancel.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !GetAtt AppointmentsTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /appointments/cancel
+
+  ImportAgendaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/import-agenda.handler
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub ${AgendaBucket.Arn}/*
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchWriteItem
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
+              - !GetAtt AgendaImportsTable.Arn
+              - !Sub ${AgendaImportsTable.Arn}/index/*
+              - !GetAtt UsersTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/agenda/import
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ListAgendaImportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/list-agenda-imports.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt AgendaImportsTable.Arn
+              - !Sub ${AgendaImportsTable.Arn}/index/*
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/agenda/imports
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetAppointmentsSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/get-appointments-settings.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/settings/appointments
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  UpdateAppointmentsSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/update-appointments-settings.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/settings/appointments
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetUserBenefitsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/get-user-benefits.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BenefitsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/benefits/user
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  UpdateUserBenefitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/update-user-benefit.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BenefitsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: PATCH
+            Path: /admin/benefits/user/{userId}/{benefitId}
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetAgendaDashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/get-agenda-dashboard.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
+              - !GetAtt AppointmentsTable.Arn
+              - !Sub ${AppointmentsTable.Arn}/index/*
+              - !GetAtt AgendaImportsTable.Arn
+              - !Sub ${AgendaImportsTable.Arn}/index/*
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/agenda/dashboard
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ListPendingAppointmentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/list-pending-appointments.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !Sub ${AppointmentsTable.Arn}/index/*
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/appointments/pending
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ReviewAppointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/review-appointment.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:ConditionCheckItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !GetAtt AgendaSlotsTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: PATCH
+            Path: /admin/appointments/{appointmentId}/review
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  CancelAdminAppointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/cancel-appointment.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:ConditionCheckItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !GetAtt AgendaSlotsTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: PATCH
+            Path: /admin/appointments/{appointmentId}/cancel
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  RescheduleAdminAppointmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/reschedule-appointment.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:ConditionCheckItem
+              - dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt AppointmentsTable.Arn
+              - !GetAtt AgendaSlotsTable.Arn
+              - !GetAtt UsersTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: PATCH
+            Path: /admin/appointments/{appointmentId}/reschedule
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  UpdateMonthPricingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/update-month-pricing.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:BatchWriteItem
+            Resource:
+              - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/agenda/pricing
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  SendNotificationCampaignFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/send-notification-campaign.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/notifications/send
             Auth:
               Authorizer: CognitoJwtAuthorizer
 
@@ -470,3 +1239,11 @@ Outputs:
     Value: !Ref NotificationsTable
   DevicesTableName:
     Value: !Ref DevicesTable
+  AgendaBucketOutput:
+    Value: !Ref AgendaBucket
+  AgendaSlotsTableOutput:
+    Value: !Ref AgendaSlotsTable
+  AppointmentsTableOutput:
+    Value: !Ref AppointmentsTable
+  AgendaImportsTableOutput:
+    Value: !Ref AgendaImportsTable

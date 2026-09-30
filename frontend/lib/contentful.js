@@ -5,8 +5,14 @@ function getConfig() {
   return {
     spaceId: process.env.CONTENTFUL_SPACE_ID,
     environment: process.env.CONTENTFUL_ENVIRONMENT || 'master',
-    accessToken: process.env.CONTENTFUL_ACCESS_TOKEN
+    accessToken: process.env.CONTENTFUL_ACCESS_TOKEN,
+    contentType: process.env.CONTENTFUL_BLOG_CONTENT_TYPE || 'blogPost'
   };
+}
+
+function getContentTypeCandidates(preferredContentType) {
+  const candidates = [preferredContentType, 'blogPost', 'blog'];
+  return [...new Set(candidates.filter(Boolean))];
 }
 
 function getAssetMap(includes = {}) {
@@ -119,7 +125,7 @@ function mergeEntries(remoteEntries = [], fallbackEntries = []) {
 }
 
 async function getBlogEntries() {
-  const { spaceId, environment, accessToken } = getConfig();
+  const { spaceId, environment, accessToken, contentType } = getConfig();
 
   if (!spaceId || !accessToken) {
     if (localBlogPosts.length) {
@@ -129,23 +135,37 @@ async function getBlogEntries() {
     throw new Error('Faltan variables de entorno de Contentful.');
   }
 
-  const url = `${CONTENTFUL_BASE_URL}/spaces/${spaceId}/environments/${environment}/entries?content_type=blogPost&include=2&order=-fields.publishedAt`;
   try {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      },
-      cache: 'no-store'
-    });
+    const remoteEntries = [];
+    const seenIds = new Set();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Contentful respondio ${response.status}: ${errorText}`);
+    for (const candidate of getContentTypeCandidates(contentType)) {
+      const url =
+        `${CONTENTFUL_BASE_URL}/spaces/${spaceId}/environments/${environment}/entries` +
+        `?content_type=${encodeURIComponent(candidate)}&include=2&order=-sys.createdAt`;
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        },
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Contentful respondio ${response.status}: ${errorText}`);
+      }
+
+      const payload = await response.json();
+      const assetMap = getAssetMap(payload.includes);
+      (payload.items || []).forEach((entry) => {
+        if (seenIds.has(entry.sys.id)) {
+          return;
+        }
+        seenIds.add(entry.sys.id);
+        remoteEntries.push(mapBlogEntry(entry, assetMap));
+      });
     }
 
-    const payload = await response.json();
-    const assetMap = getAssetMap(payload.includes);
-    const remoteEntries = (payload.items || []).map((entry) => mapBlogEntry(entry, assetMap));
     return mergeEntries(remoteEntries, localBlogPosts);
   } catch (error) {
     if (localBlogPosts.length) {

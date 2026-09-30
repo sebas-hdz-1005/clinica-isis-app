@@ -13,6 +13,8 @@ const build = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
+export const jsonResponse = (body, statusCode = 200) => build(statusCode, body);
+
 export const successResponse = (data, statusCode = 200) =>
   build(statusCode, { success: true, data });
 
@@ -22,6 +24,7 @@ export const messageResponse = (message, statusCode = 200, data = undefined) =>
 export const errorResponse = (errorCode, message, statusCode = 400, details = null) =>
   build(statusCode, {
     success: false,
+    message,
     error: {
       code: errorCode,
       message,

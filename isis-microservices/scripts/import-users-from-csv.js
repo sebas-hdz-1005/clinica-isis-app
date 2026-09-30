@@ -12,6 +12,8 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 const TEMPORARY_PASSWORD = "Test321*";
 const DEFAULT_REGION = "us-east-2";
 const PROFILE_SK = "PROFILE";
+const DEFAULT_APPOINTMENT_COST = 2000;
+const DEFAULT_APPOINTMENT_CURRENCY = "COP";
 
 const usage = () => {
   console.error("Uso: node scripts/import-users-from-csv.js ./usuarios.csv");
@@ -150,6 +152,8 @@ const putUserProfile = async (documentClient, { sub, cedula }) => {
       documentType: "CC",
       name: `Usuario ${cedula}`,
       status: "ACTIVE",
+      appointmentCost: DEFAULT_APPOINTMENT_COST,
+      appointmentCurrency: DEFAULT_APPOINTMENT_CURRENCY,
       createdAt: now,
       updatedAt: now
     },

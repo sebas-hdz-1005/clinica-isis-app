@@ -19,6 +19,7 @@ test("errorResponse returns standardized error", () => {
   assert.equal(response.statusCode, 400);
   assert.deepEqual(JSON.parse(response.body), {
     success: false,
+    message: "Invalid",
     error: {
       code: "VALIDATION_ERROR",
       message: "Invalid",

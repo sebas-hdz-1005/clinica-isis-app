@@ -97,7 +97,7 @@ const upsertPost = async (post) => {
     title: { "en-US": post.title },
     slug: { "en-US": post.slug },
     summary: { "en-US": post.summary },
-    content: { "en-US": richText(post.content) },
+    content: { "en-US": post.richText || richText(post.content) },
     publishedAt: { "en-US": post.publishedAt }
   };
 

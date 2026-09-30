@@ -1,8 +1,14 @@
+import { ENV } from "./constants.js";
+
 const assetUrl = (asset) => {
   const url = asset?.fields?.file?.url;
   if (!url) return null;
   return url.startsWith("//") ? `https:${url}` : url;
 };
+
+const getSiteUrl = () => ENV.PUBLIC_SITE_URL.replace(/\/+$/g, "");
+
+const getUrlPath = (slug) => `/blog/${slug}/`;
 
 const richTextToPlainText = (node) => {
   if (!node) return "";
@@ -20,6 +26,8 @@ const summaryFor = (entry) => {
 export const mapContentfulBlogSummary = (entry) => ({
   id: entry.sys.id,
   slug: entry.fields.slug,
+  urlPath: getUrlPath(entry.fields.slug),
+  absoluteUrl: getSiteUrl() ? `${getSiteUrl()}${getUrlPath(entry.fields.slug)}` : "",
   title: entry.fields.title,
   summary: summaryFor(entry),
   image: assetUrl(entry.fields.image),

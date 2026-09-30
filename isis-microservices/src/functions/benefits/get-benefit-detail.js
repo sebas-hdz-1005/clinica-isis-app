@@ -1,29 +1,42 @@
 import { handle } from "../../shared/handler.js";
 import { getAuthenticatedUser } from "../../shared/auth-context.js";
-import { getItem } from "../../shared/dynamodb.js";
-import { ENV } from "../../shared/constants.js";
 import { AppError, ERROR_CODES } from "../../shared/errors.js";
-import { mapBenefitDetail } from "../../shared/benefit-mapper.js";
+import {
+  buildUserBenefits,
+  getGlobalBenefit,
+  listUserBenefitStates
+} from "../../shared/benefits-service.js";
 import { successResponse } from "../../shared/response.js";
 
 export const handler = handle(async (event) => {
   const { userId } = getAuthenticatedUser(event);
   const benefitId = event.pathParameters?.benefitId;
-  if (!benefitId) throw new AppError(ERROR_CODES.VALIDATION_ERROR, "benefitId es requerido.", 400);
-
-  const assignment = await getItem(ENV.BENEFITS_TABLE, {
-    PK: `USER#${userId}`,
-    SK: `BENEFIT#${benefitId}`
-  });
-  if (!assignment) {
-    throw new AppError(ERROR_CODES.BENEFIT_NOT_ASSIGNED_TO_USER, "El beneficio no está asignado al usuario.", 403);
+  if (!benefitId) {
+    throw new AppError(ERROR_CODES.VALIDATION_ERROR, "benefitId es requerido.", 400);
   }
 
-  const metadata = await getItem(ENV.BENEFITS_TABLE, {
-    PK: `BENEFIT#${benefitId}`,
-    SK: "METADATA"
-  });
-  if (!metadata) throw new AppError(ERROR_CODES.BENEFIT_NOT_FOUND, "Beneficio no encontrado.", 404);
+  const metadata = getGlobalBenefit(benefitId);
+  if (!metadata) {
+    throw new AppError(ERROR_CODES.BENEFIT_NOT_FOUND, "Beneficio no encontrado.", 404);
+  }
 
-  return successResponse(mapBenefitDetail(assignment, metadata));
+  const [benefit] = buildUserBenefits([metadata], await listUserBenefitStates(userId));
+  if (!benefit.active) {
+    throw new AppError(
+      ERROR_CODES.BENEFIT_NOT_ASSIGNED_TO_USER,
+      "El beneficio ya fue utilizado y no está disponible.",
+      403
+    );
+  }
+
+  const {
+    active,
+    userStatus,
+    inactiveAt,
+    inactiveBy,
+    reactivatedAt,
+    updatedAt,
+    ...response
+  } = benefit;
+  return successResponse({ ...response, assignedAt: null, viewed: false });
 });

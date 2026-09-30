@@ -18,6 +18,8 @@ test("mapContentfulBlogSummary maps compact blog response", () => {
   assert.deepEqual(mapContentfulBlogSummary(contentfulEntry), {
     id: "entry-id",
     slug: "noticia",
+    urlPath: "/blog/noticia/",
+    absoluteUrl: "",
     title: "Noticia",
     summary: "Resumen",
     image: "https://images.ctfassets.net/file.jpg",

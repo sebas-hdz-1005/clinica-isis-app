@@ -2,6 +2,24 @@ import { AppError, ERROR_CODES } from "./errors.js";
 
 export const getAuthClaims = (event) => event?.requestContext?.authorizer?.jwt?.claims || {};
 
+const normalizeGroups = (groupsClaim) => {
+  if (Array.isArray(groupsClaim)) {
+    return groupsClaim.map((group) => String(group).trim()).filter(Boolean);
+  }
+
+  const rawGroups = String(groupsClaim || "").trim();
+  if (!rawGroups) {
+    return [];
+  }
+
+  return rawGroups
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .split(",")
+    .map((group) => group.replace(/^['"\s]+|['"\s]+$/g, "").trim())
+    .filter(Boolean);
+};
+
 export const getAuthenticatedUser = (event) => {
   const claims = getAuthClaims(event);
   const sub = claims.sub;
@@ -12,7 +30,7 @@ export const getAuthenticatedUser = (event) => {
     userId: sub,
     username: claims["cognito:username"] || claims.username,
     email: claims.email,
-    groups: String(claims["cognito:groups"] || "").split(",").filter(Boolean),
+    groups: normalizeGroups(claims["cognito:groups"]),
     claims
   };
 };

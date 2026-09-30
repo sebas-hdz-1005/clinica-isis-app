@@ -5,6 +5,9 @@ const activeLevel = levels[ENV.LOG_LEVEL] ?? levels.info;
 
 const sensitiveKeys = new Set([
   "password",
+  "clave",
+  "usuario",
+  "username",
   "newPassword",
   "accessToken",
   "idToken",
@@ -12,7 +15,9 @@ const sensitiveKeys = new Set([
   "authorization",
   "Authorization",
   "code",
-  "deviceToken"
+  "deviceToken",
+  "numero_documento",
+  "documentNumber"
 ]);
 
 export const maskCedula = (value) => {

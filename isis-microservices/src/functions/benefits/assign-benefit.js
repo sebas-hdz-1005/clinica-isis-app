@@ -2,6 +2,7 @@ import { handle } from "../../shared/handler.js";
 import { requireAdmin } from "../../shared/auth-context.js";
 import { getItem, putItem } from "../../shared/dynamodb.js";
 import { ENV } from "../../shared/constants.js";
+import { getGlobalBenefit } from "../../shared/benefits-service.js";
 import { AppError, ERROR_CODES } from "../../shared/errors.js";
 import { parseJsonBody, validateBody } from "../../shared/validator.js";
 import { messageResponse } from "../../shared/response.js";
@@ -17,10 +18,7 @@ export const handler = handle(async (event) => {
   const user = await getItem(ENV.USERS_TABLE, { PK: `USER#${body.userId}`, SK: "PROFILE" });
   if (!user) throw new AppError(ERROR_CODES.USER_NOT_FOUND, "Usuario no encontrado.", 404);
 
-  const metadata = await getItem(ENV.BENEFITS_TABLE, {
-    PK: `BENEFIT#${body.benefitId}`,
-    SK: "METADATA"
-  });
+  const metadata = getGlobalBenefit(body.benefitId);
   if (!metadata) throw new AppError(ERROR_CODES.BENEFIT_NOT_FOUND, "Beneficio no encontrado.", 404);
 
   const now = new Date().toISOString();
