@@ -1,6 +1,9 @@
 import { ENV } from "./constants.js";
 import { AppError, ERROR_CODES } from "./errors.js";
 import { slugify } from "./appointments-parser.js";
+import { queryAll } from "./dynamodb.js";
+import { logger } from "./logger.js";
+import { resolveProviderSpecialtyId } from "./specialty-divisions.js";
 import { getAppointmentsAdminSettings } from "./admin-settings-service.js";
 import {
   getSoftwareMedicoAvailability,
@@ -261,6 +264,53 @@ const resolveSedeId = async (query) => {
   return ensureId(sites[0].id, "sedeId");
 };
 
+// Horarios del medico ya tomados en el sistema (preagendados o confirmados) que
+// Software Medico aun puede reportar como libres. Se descartan para cualquier
+// especialidad, de modo que una reserva en una division bloquea a las demas.
+const loadTakenTimes = async (medicoId, dates) => {
+  if (!ENV.AGENDA_SLOTS_TABLE) return new Set();
+  const dateSet = new Set(dates);
+  const months = Array.from(new Set(dates.map((date) => date.slice(0, 7))));
+
+  try {
+    const items = (
+      await Promise.all(
+        months.map((monthKey) =>
+          queryAll({
+            TableName: ENV.AGENDA_SLOTS_TABLE,
+            IndexName: "MonthIndex",
+            KeyConditionExpression: "monthKey = :monthKey",
+            FilterExpression: "specialistId = :medicoId",
+            ExpressionAttributeValues: {
+              ":monthKey": monthKey,
+              ":medicoId": String(medicoId)
+            }
+          })
+        )
+      )
+    ).flat();
+
+    return new Set(
+      items
+        .filter(
+          (item) =>
+            item.isActive !== false &&
+            item.slotStatus !== "available" &&
+            dateSet.has(item.date)
+        )
+        .map((item) => `${item.date}|${String(item.startTime || "").slice(0, 5)}`)
+    );
+  } catch (error) {
+    logger.warn("Taken agenda slots lookup skipped", {
+      medicoId,
+      errorCode: error?.code,
+      errorName: error?.name,
+      errorMessage: error?.message
+    });
+    return new Set();
+  }
+};
+
 export const getAgendaDisponibleData = async (query = {}) => {
   const especialidadId = ensureId(
     query.especialidadId ?? query.especialidad_id,
@@ -336,17 +386,18 @@ export const getAgendaDisponibleData = async (query = {}) => {
 
   const citaTipoId = await resolveCitaTipoId(query, specialty, specialtyConfig);
   const sedeId = await resolveSedeId(query);
+  const takenTimes = await loadTakenTimes(medicoId, activeDates);
   const days = await mapWithConcurrency(activeDates, 4, async (fecha) => ({
     fecha,
     horarios: normalizeAvailableTimes(
       await getSoftwareMedicoAvailability({
-        especialidadId,
+        especialidadId: resolveProviderSpecialtyId(specialty),
         medicoId,
         citaTipoId,
         sedeId,
         fecha
       })
-    )
+    ).filter((hora) => !takenTimes.has(`${fecha}|${hora}`))
   }));
 
   return {

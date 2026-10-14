@@ -1,6 +1,7 @@
 import { ENV } from "./constants.js";
 import { AppError, ERROR_CODES } from "./errors.js";
 import { logger } from "./logger.js";
+import { expandSpecialtyDivisions } from "./specialty-divisions.js";
 
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const CATALOG_CACHE_TTL_MS = 5 * 60_000;
@@ -349,7 +350,9 @@ const cachedRequest = async (key, load) => {
 
 export const listSoftwareMedicoSpecialties = () =>
   cachedRequest("especialidades", async () =>
-    normalizeSoftwareMedicoSpecialties(await request("especialidad"))
+    expandSpecialtyDivisions(
+      normalizeSoftwareMedicoSpecialties(await request("especialidad"))
+    )
   );
 
 export const listSoftwareMedicoAppointmentTypes = () =>

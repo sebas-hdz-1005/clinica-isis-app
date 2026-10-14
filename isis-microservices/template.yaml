@@ -603,6 +603,12 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+            Resource:
+              - !Sub ${AgendaSlotsTable.Arn}/index/MonthIndex
       Events:
         Api:
           Type: HttpApi

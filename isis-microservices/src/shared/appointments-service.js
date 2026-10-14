@@ -30,6 +30,7 @@ import {
   normalizePreappointmentRequest
 } from "./preappointments-contract.js";
 import { getAgendaDisponibleData } from "./agenda-disponible-service.js";
+import { resolveProviderSpecialtyId } from "./specialty-divisions.js";
 
 const s3 = new S3Client({ region: ENV.AWS_REGION });
 
@@ -440,9 +441,13 @@ export const filterAvailabilityBySoftwareMedicoConfig = (
         getSoftwareMedicoActiveWeekdays(config, specialty.id)
       )
     );
-    const selectedCandidate = enabledCandidates.find(({ specialty }) =>
+    const weekdayCandidates = enabledCandidates.filter(({ specialty }) =>
       isSoftwareMedicoWeekdayActive(config, specialty.id, weekday)
     );
+    const selectedCandidate =
+      weekdayCandidates.find(({ specialty }) =>
+        specialtyNamesMatch(slot.specialty, specialty.nombre)
+      ) || weekdayCandidates[0];
 
     return [
       {
@@ -992,14 +997,25 @@ export const buildDashboardPreappointmentSlot = ({
 }) => {
   const startTime = request.hora_estimada.slice(0, 5);
   const specialist = [doctor.first_name, doctor.last_name].filter(Boolean).join(" ").trim();
-  const identity = [
-    request.especialidades_id,
-    doctor.id,
-    request.consultorios_id,
-    request.tipo,
-    request.fecha_estimada,
-    startTime
-  ].join("|");
+  // Las divisiones de una especialidad comparten el slot del medico: la misma
+  // hora reservada desde cualquier division produce el mismo slotId.
+  const identity = (
+    specialty.providerSpecialtyId
+      ? [
+          specialty.providerSpecialtyId,
+          doctor.id,
+          request.fecha_estimada,
+          startTime
+        ]
+      : [
+          request.especialidades_id,
+          doctor.id,
+          request.consultorios_id,
+          request.tipo,
+          request.fecha_estimada,
+          startTime
+        ]
+  ).join("|");
   const slotId = `dashboard-${crypto.createHash("sha256").update(identity).digest("hex").slice(0, 32)}`;
 
   return {
@@ -1013,6 +1029,7 @@ export const buildDashboardPreappointmentSlot = ({
     specialtyId: String(specialty.id),
     specialty: specialty.nombre,
     specialtyKey: slugify(specialty.nombre),
+    providerSpecialtyId: resolveProviderSpecialtyId(specialty),
     specialistId: String(doctor.id),
     specialist,
     specialistKey: slugify(specialist),
@@ -1074,7 +1091,10 @@ const resolveDashboardPreappointmentSlot = async ({ request, specialty, settings
       if (error?.name !== "ConditionalCheckFailedException") {
         throw error;
       }
-      return getItem(ENV.AGENDA_SLOTS_TABLE, { slotId: slot.slotId });
+      const existing = await getItem(ENV.AGENDA_SLOTS_TABLE, { slotId: slot.slotId });
+      if (existing?.isActive !== false && existing?.slotStatus === "available") {
+        return existing;
+      }
     }
   }
 
