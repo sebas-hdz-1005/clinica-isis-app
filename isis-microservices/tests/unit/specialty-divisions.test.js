@@ -30,9 +30,9 @@ test("divide cirugia plastica en tres especialidades con los mismos medicos", ()
     result.map((item) => [item.id, item.nombre]),
     [
       ["1", "MEDICINA GENERAL"],
-      ["917201", "CIRUGIA PLASTICA Facial (*valoracion)"],
-      ["917202", "CIRUGIA PLASTICA Mamarias (*valoracion)"],
-      ["917203", "CIRUGIA PLASTICA Corporal (*valoracion)"]
+      ["917201", "CIRUGIA PLASTICA FACIAL (*VALORACION)"],
+      ["917202", "CIRUGIA PLASTICA MAMARIAS (*VALORACION)"],
+      ["917203", "CIRUGIA PLASTICA CORPORAL (*VALORACION)"]
     ]
   );
   result.slice(1).forEach((division) => {
@@ -87,7 +87,7 @@ test("la misma hora del mismo medico genera el mismo slot en todas las divisione
 
   assert.equal(facialSlot.slotId, mamariasSlot.slotId);
   assert.equal(facialSlot.specialtyId, "917201");
-  assert.equal(mamariasSlot.specialty, "CIRUGIA PLASTICA Mamarias (*valoracion)");
+  assert.equal(mamariasSlot.specialty, "CIRUGIA PLASTICA MAMARIAS (*VALORACION)");
   assert.equal(facialSlot.providerSpecialtyId, "172");
 });
 

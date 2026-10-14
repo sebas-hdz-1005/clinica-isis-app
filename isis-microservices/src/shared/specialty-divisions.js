@@ -7,9 +7,9 @@
 // agenda disponible) validan especialidades_id como entero positivo.
 export const SPECIALTY_DIVISIONS = {
   "172": [
-    { id: "917201", nombre: "CIRUGIA PLASTICA Facial (*valoracion)" },
-    { id: "917202", nombre: "CIRUGIA PLASTICA Mamarias (*valoracion)" },
-    { id: "917203", nombre: "CIRUGIA PLASTICA Corporal (*valoracion)" }
+    { id: "917201", nombre: "CIRUGIA PLASTICA FACIAL (*VALORACION)" },
+    { id: "917202", nombre: "CIRUGIA PLASTICA MAMARIAS (*VALORACION)" },
+    { id: "917203", nombre: "CIRUGIA PLASTICA CORPORAL (*VALORACION)" }
   ]
 };
 
