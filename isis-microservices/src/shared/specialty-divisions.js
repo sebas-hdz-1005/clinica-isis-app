@@ -17,6 +17,37 @@ export const SPECIALTY_DIVISIONS = {
   ]
 };
 
+// Orden en que el catalogo de especialidades sale en los endpoints. Las
+// especialidades que no estan en la lista van al final, en orden alfabetico.
+export const SPECIALTY_CATALOG_ORDER = [
+  "1", // Medicina General
+  "177", // Ginecologia
+  "175", // Otorrinolaringologia
+  "176", // Nutricion y Dietetica
+  "167", // Medicina Interna
+  "97", // Odontologia
+  "174", // Odontopediatria
+  "178", // Ortodoncia
+  "916801", // Cosmetologia Corporal
+  "916802", // Cosmetologia Facial
+  "94", // Medicina Estetica
+  "917201", // Cirugia Plastica Facial
+  "917203", // Cirugia Plastica Corporal
+  "917202" // Cirugia Plastica Mamarias
+];
+
+const catalogPosition = (specialty) => {
+  const index = SPECIALTY_CATALOG_ORDER.indexOf(String(specialty.id));
+  return index === -1 ? SPECIALTY_CATALOG_ORDER.length : index;
+};
+
+export const sortSpecialtiesForCatalog = (specialties = []) =>
+  [...specialties].sort(
+    (left, right) =>
+      catalogPosition(left) - catalogPosition(right) ||
+      String(left.nombre).localeCompare(String(right.nombre), "es")
+  );
+
 export const expandSpecialtyDivisions = (specialties = []) =>
   specialties.flatMap((specialty) => {
     const divisions = SPECIALTY_DIVISIONS[String(specialty.id)];

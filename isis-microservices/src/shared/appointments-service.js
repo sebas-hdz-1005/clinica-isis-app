@@ -545,6 +545,10 @@ export const buildSoftwareMedicoSpecialistAvailability = (
           .slice(0, 10)
       : "";
 
+  const catalogOrder = new Map(
+    specialties.map((providerSpecialty, index) => [providerSpecialty.id, index])
+  );
+
   return specialties
     .flatMap((providerSpecialty) => {
       const specialtyKey = slugify(providerSpecialty.nombre);
@@ -611,7 +615,7 @@ export const buildSoftwareMedicoSpecialistAvailability = (
     )
     .sort(
       (left, right) =>
-        left.specialty.localeCompare(right.specialty, "es") ||
+        catalogOrder.get(left.specialtyId) - catalogOrder.get(right.specialtyId) ||
         left.specialist.localeCompare(right.specialist, "es")
     );
 };
@@ -648,9 +652,8 @@ export const groupSoftwareMedicoAvailabilityBySpecialty = (
     groups.set(item.specialtyId, current);
   });
 
-  return Array.from(groups.values()).sort((left, right) =>
-    left.specialty.localeCompare(right.specialty, "es")
-  );
+  // Conserva el orden del catalogo en que llegan los especialistas.
+  return Array.from(groups.values());
 };
 
 const resolvePatientProfileForBooking = async (cedula) => {

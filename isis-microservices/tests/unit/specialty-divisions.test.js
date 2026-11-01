@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 import {
   expandSpecialtyDivisions,
   inheritSpecialtyDivisionsConfig,
-  resolveProviderSpecialtyId
+  resolveProviderSpecialtyId,
+  sortSpecialtiesForCatalog
 } from "../../src/shared/specialty-divisions.js";
-import { buildDashboardPreappointmentSlot } from "../../src/shared/appointments-service.js";
+import {
+  buildDashboardPreappointmentSlot,
+  buildSoftwareMedicoSpecialistAvailability,
+  groupSoftwareMedicoAvailabilityBySpecialty
+} from "../../src/shared/appointments-service.js";
 import { filterActiveSoftwareMedicoCatalog } from "../../src/shared/software-medico-config.js";
 import { getAgendaDisponibleData } from "../../src/shared/agenda-disponible-service.js";
 import { resetSoftwareMedicoCachesForTests } from "../../src/shared/software-medico-service.js";
@@ -222,4 +227,53 @@ test("una division sin configuracion propia hereda la de su especialidad", () =>
   });
   // Guardada como inactiva desde Agenda activa: no se reactiva por herencia.
   assert.equal(saved.especialidadesActivas.includes("917202"), false);
+});
+
+test("el catalogo sale en el orden definido por la clinica", () => {
+  const provider = [
+    ["94", "MEDICINA ESTÉTICA"],
+    ["172", "CIRUGIA PLASTICA"],
+    ["170", "CIRUGÍA GENERAL"],
+    ["168", "COSMETOLOGIA"],
+    ["178", "ORTODONCIA"],
+    ["174", "ODONTOPEDIATRIA"],
+    ["97", "ODONTOLOGÍA"],
+    ["167", "MEDICINA INTERNA"],
+    ["176", "NUTRICION"],
+    ["175", "OTORRINOLARINGOLOGIA"],
+    ["177", "GINECOLOGIA"],
+    ["1", "MEDICINA GENERAL"],
+    ["179", "IMAGENES DIAGNÓSTICAS"]
+  ].map(([id, nombre]) => ({
+    id,
+    nombre,
+    cita_tipos: [],
+    especialistas: [{ id: `${id}0`, first_name: "Medico", last_name: id }]
+  }));
+  const catalog = sortSpecialtiesForCatalog(expandSpecialtyDivisions(provider));
+  const expected = [
+    "MEDICINA GENERAL",
+    "GINECOLOGIA",
+    "OTORRINOLARINGOLOGIA",
+    "NUTRICION",
+    "MEDICINA INTERNA",
+    "ODONTOLOGÍA",
+    "ODONTOPEDIATRIA",
+    "ORTODONCIA",
+    "COSMETOLOGIA CORPORAL (VALORACION)",
+    "COSMETOLOGIA FACIAL (VALORACION)",
+    "MEDICINA ESTÉTICA",
+    "CIRUGIA PLASTICA FACIAL (VALORACION)",
+    "CIRUGIA PLASTICA CORPORAL (VALORACION)",
+    "CIRUGIA PLASTICA MAMARIAS (VALORACION)",
+    "CIRUGÍA GENERAL",
+    "IMAGENES DIAGNÓSTICAS"
+  ];
+
+  assert.deepEqual(catalog.map((item) => item.nombre), expected);
+
+  const grouped = groupSoftwareMedicoAvailabilityBySpecialty(
+    buildSoftwareMedicoSpecialistAvailability(catalog, {}, { date: "2030-01-15" })
+  );
+  assert.deepEqual(grouped.map((item) => item.specialty), expected);
 });
