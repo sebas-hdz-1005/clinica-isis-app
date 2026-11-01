@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   expandSpecialtyDivisions,
+  inheritSpecialtyDivisionsConfig,
   resolveProviderSpecialtyId
 } from "../../src/shared/specialty-divisions.js";
 import { buildDashboardPreappointmentSlot } from "../../src/shared/appointments-service.js";
@@ -30,9 +31,9 @@ test("divide cirugia plastica en tres especialidades con los mismos medicos", ()
     result.map((item) => [item.id, item.nombre]),
     [
       ["1", "MEDICINA GENERAL"],
-      ["917201", "CIRUGIA PLASTICA FACIAL (*VALORACION)"],
-      ["917202", "CIRUGIA PLASTICA MAMARIAS (*VALORACION)"],
-      ["917203", "CIRUGIA PLASTICA CORPORAL (*VALORACION)"]
+      ["917201", "CIRUGIA PLASTICA FACIAL (VALORACION)"],
+      ["917202", "CIRUGIA PLASTICA MAMARIAS (VALORACION)"],
+      ["917203", "CIRUGIA PLASTICA CORPORAL (VALORACION)"]
     ]
   );
   result.slice(1).forEach((division) => {
@@ -87,7 +88,7 @@ test("la misma hora del mismo medico genera el mismo slot en todas las divisione
 
   assert.equal(facialSlot.slotId, mamariasSlot.slotId);
   assert.equal(facialSlot.specialtyId, "917201");
-  assert.equal(mamariasSlot.specialty, "CIRUGIA PLASTICA MAMARIAS (*VALORACION)");
+  assert.equal(mamariasSlot.specialty, "CIRUGIA PLASTICA MAMARIAS (VALORACION)");
   assert.equal(facialSlot.providerSpecialtyId, "172");
 });
 
@@ -177,4 +178,48 @@ test("la agenda de una division consulta la especialidad real y oculta horas ya 
     ENV.AGENDA_SLOTS_TABLE = originalEnv.slotsTable;
     resetSoftwareMedicoCachesForTests();
   }
+});
+
+test("divide cosmetologia en corporal y facial", () => {
+  const result = expandSpecialtyDivisions([
+    { id: "168", nombre: "COSMETOLOGIA", cita_tipos: [], especialistas: [{ id: "9", first_name: "Ana" }] }
+  ]);
+
+  assert.deepEqual(
+    result.map((item) => [item.id, item.nombre, item.providerSpecialtyId]),
+    [
+      ["916801", "COSMETOLOGIA CORPORAL (VALORACION)", "168"],
+      ["916802", "COSMETOLOGIA FACIAL (VALORACION)", "168"]
+    ]
+  );
+});
+
+test("una division sin configuracion propia hereda la de su especialidad", () => {
+  const result = inheritSpecialtyDivisionsConfig({
+    especialidadesActivas: ["168", "172", "917201"],
+    medicosActivosPorEspecialidad: { "168": ["9", "10"], "172": ["240"], "917201": ["177"] },
+    diasActivosPorEspecialidad: { "168": ["lunes"], "172": ["martes"], "917201": ["jueves"] },
+    rangosActivosPorMedico: { "168": { "9": { fechaInicio: "2030-01-01" } } }
+  });
+
+  assert.deepEqual(
+    result.especialidadesActivas,
+    ["168", "172", "917201", "916801", "916802", "917202", "917203"]
+  );
+  assert.deepEqual(result.medicosActivosPorEspecialidad["916801"], ["9", "10"]);
+  assert.deepEqual(result.diasActivosPorEspecialidad["916802"], ["lunes"]);
+  assert.deepEqual(result.rangosActivosPorMedico["916801"], { "9": { fechaInicio: "2030-01-01" } });
+  // Las divisiones ya guardadas conservan su configuracion, incluso si estan inactivas.
+  assert.deepEqual(result.medicosActivosPorEspecialidad["917201"], ["177"]);
+  assert.deepEqual(result.medicosActivosPorEspecialidad["917202"], ["240"]);
+  assert.deepEqual(result.diasActivosPorEspecialidad["917201"], ["jueves"]);
+
+  const saved = inheritSpecialtyDivisionsConfig({
+    especialidadesActivas: ["172"],
+    medicosActivosPorEspecialidad: { "172": ["240"], "917202": ["240"] },
+    diasActivosPorEspecialidad: {},
+    rangosActivosPorMedico: {}
+  });
+  // Guardada como inactiva desde Agenda activa: no se reactiva por herencia.
+  assert.equal(saved.especialidadesActivas.includes("917202"), false);
 });

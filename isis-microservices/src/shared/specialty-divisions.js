@@ -6,10 +6,14 @@
 // Los ids son numericos porque los contratos publicos (preagendamiento,
 // agenda disponible) validan especialidades_id como entero positivo.
 export const SPECIALTY_DIVISIONS = {
+  "168": [
+    { id: "916801", nombre: "COSMETOLOGIA CORPORAL (VALORACION)" },
+    { id: "916802", nombre: "COSMETOLOGIA FACIAL (VALORACION)" }
+  ],
   "172": [
-    { id: "917201", nombre: "CIRUGIA PLASTICA FACIAL (*VALORACION)" },
-    { id: "917202", nombre: "CIRUGIA PLASTICA MAMARIAS (*VALORACION)" },
-    { id: "917203", nombre: "CIRUGIA PLASTICA CORPORAL (*VALORACION)" }
+    { id: "917201", nombre: "CIRUGIA PLASTICA FACIAL (VALORACION)" },
+    { id: "917202", nombre: "CIRUGIA PLASTICA MAMARIAS (VALORACION)" },
+    { id: "917203", nombre: "CIRUGIA PLASTICA CORPORAL (VALORACION)" }
   ]
 };
 
@@ -30,3 +34,37 @@ export const expandSpecialtyDivisions = (specialties = []) =>
 
 export const resolveProviderSpecialtyId = (specialty = {}) =>
   String(specialty.providerSpecialtyId || specialty.id);
+
+// Una division que aun no se ha guardado desde Agenda activa hereda la
+// configuracion de su especialidad real, para que no desaparezca del
+// agendamiento al publicarse. Al guardar, el dashboard escribe los medicos de
+// cada especialidad y la division pasa a tener configuracion propia.
+export const inheritSpecialtyDivisionsConfig = (config) => {
+  const medicos = { ...config.medicosActivosPorEspecialidad };
+  const dias = { ...config.diasActivosPorEspecialidad };
+  const rangos = { ...config.rangosActivosPorMedico };
+  const activas = config.especialidadesActivas
+    ? [...config.especialidadesActivas]
+    : null;
+
+  Object.entries(SPECIALTY_DIVISIONS).forEach(([providerId, divisions]) => {
+    divisions.forEach(({ id }) => {
+      if (medicos[id] !== undefined || dias[id] !== undefined) return;
+
+      if (medicos[providerId] !== undefined) medicos[id] = [...medicos[providerId]];
+      if (dias[providerId] !== undefined) dias[id] = [...dias[providerId]];
+      if (rangos[providerId] !== undefined) rangos[id] = { ...rangos[providerId] };
+      if (activas && activas.includes(providerId) && !activas.includes(id)) {
+        activas.push(id);
+      }
+    });
+  });
+
+  return {
+    ...config,
+    especialidadesActivas: activas,
+    medicosActivosPorEspecialidad: medicos,
+    diasActivosPorEspecialidad: dias,
+    rangosActivosPorMedico: rangos
+  };
+};

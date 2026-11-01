@@ -1,6 +1,7 @@
 import { ENV } from "./constants.js";
 import { getItem, putItem } from "./dynamodb.js";
 import { normalizeSoftwareMedicoConfig } from "./software-medico-config.js";
+import { inheritSpecialtyDivisionsConfig } from "./specialty-divisions.js";
 
 const SETTINGS_KEY = {
   PK: "SYSTEM",
@@ -87,8 +88,10 @@ export const getAppointmentsAdminSettings = async () => {
     ...DEFAULTS,
     ...saved,
     pricingBySpecialty: normalizeSpecialtyPricing(saved?.pricingBySpecialty || DEFAULTS.pricingBySpecialty),
-    softwareMedicoConfig: normalizeSoftwareMedicoConfig(
-      saved?.softwareMedicoConfig ?? DEFAULTS.softwareMedicoConfig
+    softwareMedicoConfig: inheritSpecialtyDivisionsConfig(
+      normalizeSoftwareMedicoConfig(
+        saved?.softwareMedicoConfig ?? DEFAULTS.softwareMedicoConfig
+      )
     ),
     ...SETTINGS_KEY
   };
