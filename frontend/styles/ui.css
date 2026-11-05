@@ -1672,9 +1672,7 @@
 
 .admin-reschedule {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) auto;
-  gap: 12px;
-  align-items: end;
+  gap: 14px;
   padding: 14px;
   border: 1px dashed #a9dcd9;
   border-radius: 12px;
@@ -2244,10 +2242,6 @@
   .admin-two-col,
   .home-grid,
   .home-validator {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-reschedule {
     grid-template-columns: minmax(0, 1fr);
   }
 

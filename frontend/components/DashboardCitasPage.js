@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAuthHeaders, clearAdminSession, loadAdminSession, saveAdminSession } from '../lib/admin-session';
 import Icon from './Icon';
+import SoftwareMedicoSlotPicker, { formatPickerDay, formatPickerTime } from './SoftwareMedicoSlotPicker';
 
 const DEFAULT_MONTH =
   process.env.NEXT_PUBLIC_DEFAULT_APPOINTMENTS_MONTH ||
@@ -105,43 +106,6 @@ function formatMonthLabel(month) {
   }).format(date);
 
   return `agenda de ${label}`;
-}
-
-function formatDateTimeLabel(date, startTime) {
-  if (!date || !startTime) {
-    return 'Horario pendiente';
-  }
-
-  const formattedDate = new Intl.DateTimeFormat('es-CO', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC'
-  }).format(new Date(`${date}T00:00:00Z`));
-
-  const [hours = '00', minutes = '00'] = String(startTime).split(':');
-  const timeDate = new Date(Date.UTC(2000, 0, 1, Number(hours), Number(minutes)));
-  const formattedTime = new Intl.DateTimeFormat('es-CO', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'UTC'
-  }).format(timeDate);
-
-  return `${formattedDate}, ${formattedTime}`;
-}
-
-function formatDayLabel(date) {
-  if (!date) {
-    return '';
-  }
-
-  return new Intl.DateTimeFormat('es-CO', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC'
-  }).format(new Date(`${date}T00:00:00Z`));
 }
 
 function formatShortDateTime(date, time) {
@@ -323,7 +287,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   const [showPassword, setShowPassword] = useState(false);
   const [dashboard, setDashboard] = useState(null);
   const [settings, setSettings] = useState(null);
-  const [availableSlots, setAvailableSlots] = useState([]);
   const [campaign, setCampaign] = useState({
     title: '',
     message: '',
@@ -354,10 +317,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     rangosActivosPorMedico: {}
   });
   const [softwareMedicoDirty, setSoftwareMedicoDirty] = useState(false);
-  const [slotFilters, setSlotFilters] = useState({
-    specialtyKey: '',
-    date: ''
-  });
   const [assignedFilters, setAssignedFilters] = useState({
     cedula: '',
     status: 'all'
@@ -372,7 +331,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   });
   const [agendaFile, setAgendaFile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [loadingSlots, setLoadingSlots] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingSoftwareMedico, setSavingSoftwareMedico] = useState(false);
   const [savingPricing, setSavingPricing] = useState(false);
@@ -392,6 +350,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
   const previousPendingIdsRef = useRef([]);
   const [confirmTab, setConfirmTab] = useState('pendientes');
+  const [panelSpecialtyId, setPanelSpecialtyId] = useState('');
+  const [panelSlot, setPanelSlot] = useState(null);
+  const [rescheduleSlot, setRescheduleSlot] = useState(null);
   const [agendaSearch, setAgendaSearch] = useState('');
   const [expandedSpecialties, setExpandedSpecialties] = useState([]);
 
@@ -474,18 +435,13 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   useEffect(() => {
     if (!specialties.length) {
       setSelectedSpecialtyKey('');
-      setSlotFilters((current) => ({ ...current, specialtyKey: '' }));
       return;
     }
 
     if (!specialties.some((item) => item.specialtyKey === selectedSpecialtyKey)) {
       setSelectedSpecialtyKey(specialties[0].specialtyKey);
     }
-
-    if (!specialties.some((item) => item.specialtyKey === slotFilters.specialtyKey)) {
-      setSlotFilters((current) => ({ ...current, specialtyKey: specialties[0].specialtyKey }));
-    }
-  }, [specialties, selectedSpecialtyKey, slotFilters.specialtyKey]);
+  }, [specialties, selectedSpecialtyKey]);
 
   useEffect(() => {
     if (!specialties.length) {
@@ -507,14 +463,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
       appointmentCurrency: selected.appointmentCurrency || settings?.appointmentCurrency || 'COP'
     });
   }, [selectedSpecialtyKey, specialties, settings]);
-
-  useEffect(() => {
-    if (activeSection !== 'confirmaciones' || !specialties.length) {
-      return;
-    }
-
-    loadAvailableSlots();
-  }, [activeSection, month, slotFilters.specialtyKey, slotFilters.date, specialties, session?.accessToken]);
 
   useEffect(() => {
     if (!session?.accessToken || !adminProfile) {
@@ -689,38 +637,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
       if (!silent) {
         setLoading(false);
       }
-    }
-  }
-
-  async function loadAvailableSlots() {
-    setLoadingSlots(true);
-    setError('');
-
-    try {
-      const selectedSpecialty = specialties.find((item) => item.specialtyKey === slotFilters.specialtyKey);
-      const params = new URLSearchParams({ month, includeSlots: 'true' });
-
-      if (selectedSpecialty?.specialty) {
-        params.set('specialty', selectedSpecialty.specialty);
-      }
-
-      if (slotFilters.date) {
-        params.set('date', slotFilters.date);
-      }
-
-      const response = await fetch(`${getApiBaseUrl()}/appointments/availability?${params.toString()}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'No fue posible consultar la agenda disponible.');
-      }
-
-      setAvailableSlots((data.slots || []).slice(0, 18));
-    } catch (requestError) {
-      setAvailableSlots([]);
-      setError(requestError.message);
-    } finally {
-      setLoadingSlots(false);
     }
   }
 
@@ -1146,7 +1062,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         setRescheduleTargetId('');
         setRescheduleForm({ slotId: '', notes: '' });
       }
-      await Promise.all([loadAll(month), loadAvailableSlots()]);
+      await loadAll(month);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1155,8 +1071,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   }
 
   async function rescheduleAppointment(appointmentId) {
-    if (!rescheduleForm.slotId) {
-      setError('Selecciona un horario disponible para modificar la cita.');
+    if (!rescheduleSlot) {
+      setError('Selecciona el nuevo horario para la cita.');
       return;
     }
 
@@ -1170,7 +1086,10 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(rescheduleForm)
+        body: JSON.stringify({
+          softwareMedico: rescheduleSlot,
+          notes: rescheduleForm.notes
+        })
       });
       const data = await response.json();
 
@@ -1180,8 +1099,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
       setFeedback(data.message || 'Cita modificada correctamente.');
       setRescheduleTargetId('');
+      setRescheduleSlot(null);
       setRescheduleForm({ slotId: '', notes: '' });
-      await Promise.all([loadAll(month), loadAvailableSlots()]);
+      await loadAll(month);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1282,29 +1202,44 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
   async function assignAppointmentFromAdmin(event) {
     event.preventDefault();
+
+    if (!panelSlot) {
+      setError('Selecciona un horario disponible.');
+      return;
+    }
+
     setSubmittingAssignment(true);
     setFeedback('');
     setError('');
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/appointments/book`, {
+      const response = await fetch(`${getApiBaseUrl()}/preagendamiento`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(assignForm)
+        body: JSON.stringify({
+          tipo_documento: 'CC',
+          numero_documento: assignForm.cedula.trim(),
+          tipo: Number(panelSlot.tipo || 1),
+          consultorios_id: Number(panelSlot.sedeId || 1),
+          especialidades_id: Number(panelSlot.especialidadId),
+          medico_id: Number(panelSlot.medicoId),
+          fecha_estimada: panelSlot.fecha,
+          hora_estimada: `${panelSlot.hora}:00`,
+          observacion_solicitud: 'Preagendada desde el panel administrativo',
+          patientName: assignForm.patientName.trim(),
+          patientEmail: assignForm.patientEmail.trim(),
+          patientPhone: assignForm.patientPhone.trim()
+        })
       });
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'No fue posible preagendar la cita desde el admin.');
+        throw new Error(data.message || 'No fue posible preagendar la cita desde el panel.');
       }
 
-      const emailNote = data.notificationEmailStatus?.skipped
-        ? ` Correo interno pendiente: ${data.notificationEmailStatus.reason || 'sin detalle'}.`
-        : ' Correo interno enviado al equipo de seguimiento.';
-
-      setFeedback(`${data.message || 'Cita preagendada correctamente.'}${emailNote}`);
+      setFeedback(data.message || 'Cita preagendada correctamente.');
       setAssignForm({
         slotId: '',
         cedula: '',
@@ -1312,7 +1247,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         patientEmail: '',
         patientPhone: ''
       });
-      await Promise.all([loadAll(month), loadAvailableSlots()]);
+      setPanelSlot(null);
+      setConfirmTab('pendientes');
+      await loadAll(month);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1320,39 +1257,47 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     }
   }
 
-  function renderRescheduleForm(appointmentId, prefix) {
-    if (rescheduleTargetId !== appointmentId) {
+  // Medicos que Agenda activa deja visibles para una especialidad.
+  function getActiveDoctors(specialtyId) {
+    const specialty = softwareMedicoSpecialties.find((item) => String(item.specialtyId) === String(specialtyId));
+    if (!specialty) {
       return null;
     }
 
+    const activeIds = softwareMedicoForm.medicosActivosPorEspecialidad[String(specialtyId)];
+    return (specialty.medicos || []).filter((doctor) => !activeIds || activeIds.includes(String(doctor.id)));
+  }
+
+  function renderRescheduleForm(appointment, prefix) {
+    if (rescheduleTargetId !== appointment.appointmentId) {
+      return null;
+    }
+
+    const doctors = getActiveDoctors(appointment.specialtyId);
+
     return (
       <div className="admin-reschedule">
-        <div className="ui-field">
-          <label htmlFor={`${prefix}-slot-${appointmentId}`}>Nuevo horario</label>
-          <select
-            id={`${prefix}-slot-${appointmentId}`}
-            className="ui-select"
-            value={rescheduleForm.slotId}
-            onChange={(event) =>
-              setRescheduleForm((current) => ({ ...current, slotId: event.target.value }))
-            }
-          >
-            <option value="">
-              {availableSlots.length ? 'Selecciona un horario disponible' : 'No hay horarios con los filtros actuales'}
-            </option>
-            {availableSlots.map((slot) => (
-              <option key={slot.slotId} value={slot.slotId}>
-                {`${formatDateTimeLabel(slot.date, slot.startTime)} · ${slot.specialist} · ${slot.specialty}`}
-              </option>
-            ))}
-          </select>
-          <p className="ui-hint">Los horarios salen de la pestaña Agendar desde el panel.</p>
-        </div>
+        {doctors ? (
+          <SoftwareMedicoSlotPicker
+            key={`${prefix}-${appointment.appointmentId}`}
+            idPrefix={`${prefix}-${appointment.appointmentId}`}
+            specialtyId={appointment.specialtyId}
+            doctors={doctors}
+            initialDoctorId={appointment.specialistId}
+            value={rescheduleSlot}
+            onChange={setRescheduleSlot}
+          />
+        ) : (
+          <p className="ui-hint">
+            Esta cita no está asociada a una especialidad activa de Software Médico. Cancélala y agéndala de nuevo
+            desde la pestaña Agendar desde el panel.
+          </p>
+        )}
 
         <div className="ui-field">
-          <label htmlFor={`${prefix}-notes-${appointmentId}`}>Nota interna</label>
+          <label htmlFor={`${prefix}-notes-${appointment.appointmentId}`}>Nota interna (opcional)</label>
           <input
-            id={`${prefix}-notes-${appointmentId}`}
+            id={`${prefix}-notes-${appointment.appointmentId}`}
             className="ui-input"
             value={rescheduleForm.notes}
             onChange={(event) =>
@@ -1362,14 +1307,20 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
           />
         </div>
 
-        <button
-          type="button"
-          className="ui-btn"
-          onClick={() => rescheduleAppointment(appointmentId)}
-          disabled={reschedulingId === appointmentId || !rescheduleForm.slotId}
-        >
-          {reschedulingId === appointmentId ? 'Guardando...' : 'Guardar cambio'}
-        </button>
+        <div className="admin-form-actions">
+          <button
+            type="button"
+            className="ui-btn"
+            onClick={() => rescheduleAppointment(appointment.appointmentId)}
+            disabled={reschedulingId === appointment.appointmentId || !rescheduleSlot}
+          >
+            {reschedulingId === appointment.appointmentId
+              ? 'Guardando...'
+              : rescheduleSlot
+                ? `Mover a ${formatPickerDay(rescheduleSlot.fecha)}, ${formatPickerTime(rescheduleSlot.hora)}`
+                : 'Selecciona el nuevo horario'}
+          </button>
+        </div>
       </div>
     );
   }
@@ -1392,6 +1343,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
           className="ui-btn ui-btn-sm ui-btn-secondary"
           onClick={() => {
             setRescheduleTargetId(isRescheduling ? '' : appointment.appointmentId);
+            setRescheduleSlot(null);
             setRescheduleForm({ slotId: '', notes: '' });
           }}
         >
@@ -1455,7 +1407,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         </dl>
 
         {renderManageActions(appointment)}
-        {renderRescheduleForm(appointment.appointmentId, prefix)}
+        {renderRescheduleForm(appointment, prefix)}
       </article>
     );
   }
@@ -1585,98 +1537,53 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   }
 
   function renderAgendarDesdePanel() {
-    const selectedSlot = availableSlots.find((slot) => slot.slotId === assignForm.slotId);
-    const sortedSlots = [...availableSlots].sort(
-      (left, right) =>
-        `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`) ||
-        String(left.specialist).localeCompare(String(right.specialist), 'es')
+    const bookableSpecialties = softwareMedicoSpecialties.filter((specialty) =>
+      softwareMedicoForm.especialidadesActivas.includes(String(specialty.specialtyId))
     );
-    const slotsByDate = sortedSlots.reduce((groups, slot) => {
-      const current = groups.get(slot.date) || [];
-      current.push(slot);
-      groups.set(slot.date, current);
-      return groups;
-    }, new Map());
+    const doctors = panelSpecialtyId ? getActiveDoctors(panelSpecialtyId) || [] : [];
+    const panelSpecialty = bookableSpecialties.find((item) => String(item.specialtyId) === panelSpecialtyId);
 
     return (
       <div className="admin-booking">
         <section className="ui-card">
           <div className="ui-card-header">
             <div>
-              <h3>Horarios disponibles</h3>
-              <p>Elige un horario y completa los datos del paciente.</p>
+              <h3>Horario</h3>
+              <p>Agenda real de Software Médico, con las especialidades y médicos activos.</p>
             </div>
-            <button
-              type="button"
-              className="ui-btn ui-btn-sm ui-btn-secondary"
-              onClick={loadAvailableSlots}
-              disabled={loadingSlots}
-            >
-              {loadingSlots ? <span className="ui-spinner" /> : <Icon name="refresh" />}
-              Actualizar
-            </button>
           </div>
-          <div className="ui-card-body admin-section">
-            <div className="admin-filters">
-              <div className="ui-field">
-                <label htmlFor="slot-specialty-filter">Especialidad</label>
-                <select
-                  id="slot-specialty-filter"
-                  className="ui-select"
-                  value={slotFilters.specialtyKey}
-                  onChange={(event) =>
-                    setSlotFilters((current) => ({ ...current, specialtyKey: event.target.value }))
-                  }
-                >
-                  {specialties.map((item) => (
-                    <option key={item.specialtyKey} value={item.specialtyKey}>
-                      {item.specialty}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="ui-field">
-                <label htmlFor="slot-date-filter">Fecha</label>
-                <input
-                  id="slot-date-filter"
-                  className="ui-input"
-                  type="date"
-                  value={slotFilters.date}
-                  onChange={(event) =>
-                    setSlotFilters((current) => ({ ...current, date: event.target.value }))
-                  }
-                />
-              </div>
+          <div className="ui-card-body admin-form">
+            <div className="ui-field">
+              <label htmlFor="panel-specialty">Especialidad</label>
+              <select
+                id="panel-specialty"
+                className="ui-select"
+                value={panelSpecialtyId}
+                onChange={(event) => {
+                  setPanelSpecialtyId(event.target.value);
+                  setPanelSlot(null);
+                }}
+              >
+                <option value="">Selecciona una especialidad</option>
+                {bookableSpecialties.map((item) => (
+                  <option key={item.specialtyId} value={String(item.specialtyId)}>
+                    {item.specialty}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {loadingSlots && !availableSlots.length ? (
-              <div className="ui-progress" />
-            ) : slotsByDate.size ? (
-              <div className="admin-slot-days">
-                {[...slotsByDate.entries()].map(([date, slots]) => (
-                  <div key={date} className="admin-slot-day">
-                    <h4>{formatDayLabel(date)}</h4>
-                    <div className="admin-slot-grid">
-                      {slots.map((slot) => (
-                        <button
-                          key={slot.slotId}
-                          type="button"
-                          className={`admin-slot ${assignForm.slotId === slot.slotId ? 'admin-slot-active' : ''}`}
-                          onClick={() => setAssignForm((current) => ({ ...current, slotId: slot.slotId }))}
-                          aria-pressed={assignForm.slotId === slot.slotId}
-                        >
-                          <strong>{formatTimeLabel(slot.startTime)}</strong>
-                          <span>{slot.specialist}</span>
-                          <small>{formatMoney(slot.appointmentCost, slot.appointmentCurrency)}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {panelSpecialtyId ? (
+              <SoftwareMedicoSlotPicker
+                key={panelSpecialtyId}
+                idPrefix="panel"
+                specialtyId={panelSpecialtyId}
+                doctors={doctors}
+                value={panelSlot}
+                onChange={setPanelSlot}
+              />
             ) : (
-              renderEmpty('calendar', 'No hay horarios con estos filtros', 'Prueba otra especialidad o quita la fecha.')
+              renderEmpty('calendar', 'Elige una especialidad', 'Luego selecciona el profesional, el día y la hora.')
             )}
           </div>
         </section>
@@ -1686,16 +1593,18 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
             <h3>Datos del paciente</h3>
           </div>
           <div className="ui-card-body admin-form">
-            <div className={`admin-selected-slot ${selectedSlot ? '' : 'admin-selected-slot-empty'}`}>
-              {selectedSlot ? (
+            <div className={`admin-selected-slot ${panelSlot ? '' : 'admin-selected-slot-empty'}`}>
+              {panelSlot ? (
                 <>
-                  <strong>{formatDateTimeLabel(selectedSlot.date, selectedSlot.startTime)}</strong>
+                  <strong>
+                    {formatPickerDay(panelSlot.fecha)}, {formatPickerTime(panelSlot.hora)}
+                  </strong>
                   <span>
-                    {selectedSlot.specialist} · {selectedSlot.specialty}
+                    {panelSlot.doctorName} · {panelSpecialty?.specialty}
                   </span>
                 </>
               ) : (
-                <span>Selecciona un horario de la lista.</span>
+                <span>Selecciona un horario.</span>
               )}
             </div>
 
@@ -1752,7 +1661,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
             <button
               type="submit"
               className="ui-btn ui-btn-block"
-              disabled={submittingAssignment || !assignForm.slotId || !assignForm.cedula.trim()}
+              disabled={submittingAssignment || !panelSlot || !assignForm.cedula.trim()}
             >
               {submittingAssignment ? 'Preagendando...' : 'Preagendar cita'}
             </button>

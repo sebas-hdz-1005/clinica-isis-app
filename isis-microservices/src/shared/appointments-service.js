@@ -1492,21 +1492,93 @@ export const cancelAppointmentByAdmin = async ({ appointmentId, cancelledBy, rea
   };
 };
 
-export const rescheduleAppointmentByAdmin = async ({ appointmentId, slotId, updatedBy, notes }) => {
-  const normalizedAppointmentId = String(appointmentId || "").trim();
-  const normalizedSlotId = String(slotId || "").trim();
+// Horario destino de una reprogramacion: un slot existente (agenda importada)
+// o un horario de Software Medico (especialidad, medico, fecha y hora), que se
+// valida contra la agenda disponible y se registra como slot propio.
+const resolveRescheduleTarget = async ({ slotId, softwareMedico }) => {
+  if (slotId) {
+    return getItem(ENV.AGENDA_SLOTS_TABLE, { slotId });
+  }
 
-  if (!normalizedAppointmentId || !normalizedSlotId) {
+  const { especialidadId, medicoId, fecha, hora, tipo, sedeId } = softwareMedico;
+  const [specialties, settings] = await Promise.all([
+    listSoftwareMedicoSpecialties(),
+    getAppointmentsAdminSettings()
+  ]);
+  const specialty = specialties.find((item) => String(item.id) === String(especialidadId));
+  if (!specialty) {
     throw new AppError(
       ERROR_CODES.VALIDATION_ERROR,
-      "Debes enviar appointmentId y slotId para reprogramar la cita.",
+      "La especialidad indicada no existe o no esta habilitada.",
+      400
+    );
+  }
+
+  const slot = await resolveDashboardPreappointmentSlot({
+    request: {
+      especialidades_id: Number(especialidadId),
+      medico_id: Number(medicoId),
+      fecha_estimada: fecha,
+      hora_estimada: `${hora}:00`,
+      tipo: Number(tipo) || undefined,
+      consultorios_id: Number(sedeId) || undefined
+    },
+    specialty,
+    settings
+  });
+  if (slot) {
+    ensureFutureSlot(slot);
+  }
+  return slot;
+};
+
+const normalizeSoftwareMedicoTarget = (value) => {
+  if (!value || typeof value !== "object") return null;
+  const target = {
+    especialidadId: String(value.especialidadId ?? "").trim(),
+    medicoId: String(value.medicoId ?? "").trim(),
+    fecha: String(value.fecha ?? "").trim(),
+    hora: String(value.hora ?? "").trim().slice(0, 5),
+    tipo: value.tipo,
+    sedeId: value.sedeId
+  };
+  const valid =
+    /^\d+$/.test(target.especialidadId) &&
+    /^\d+$/.test(target.medicoId) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(target.fecha) &&
+    /^\d{2}:\d{2}$/.test(target.hora);
+  if (!valid) {
+    throw new AppError(
+      ERROR_CODES.VALIDATION_ERROR,
+      "El nuevo horario debe indicar especialidadId, medicoId, fecha (YYYY-MM-DD) y hora (HH:mm).",
+      400
+    );
+  }
+  return target;
+};
+
+export const rescheduleAppointmentByAdmin = async ({
+  appointmentId,
+  slotId,
+  softwareMedico,
+  updatedBy,
+  notes
+}) => {
+  const normalizedAppointmentId = String(appointmentId || "").trim();
+  const normalizedSlotId = String(slotId || "").trim();
+  const softwareMedicoTarget = normalizedSlotId ? null : normalizeSoftwareMedicoTarget(softwareMedico);
+
+  if (!normalizedAppointmentId || (!normalizedSlotId && !softwareMedicoTarget)) {
+    throw new AppError(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Debes enviar appointmentId y el nuevo horario para reprogramar la cita.",
       400
     );
   }
 
   const [appointment, nextSlot] = await Promise.all([
     getItem(ENV.APPOINTMENTS_TABLE, { appointmentId: normalizedAppointmentId }),
-    getItem(ENV.AGENDA_SLOTS_TABLE, { slotId: normalizedSlotId })
+    resolveRescheduleTarget({ slotId: normalizedSlotId, softwareMedico: softwareMedicoTarget })
   ]);
 
   if (!appointment) {
@@ -1537,7 +1609,7 @@ export const rescheduleAppointmentByAdmin = async ({ appointmentId, slotId, upda
     );
   }
 
-  if (appointment.slotId === normalizedSlotId) {
+  if (appointment.slotId === nextSlot.slotId) {
     throw new AppError(
       ERROR_CODES.VALIDATION_ERROR,
       "Debes seleccionar un horario diferente al actual.",
@@ -1567,7 +1639,7 @@ export const rescheduleAppointmentByAdmin = async ({ appointmentId, slotId, upda
           Key: { appointmentId: normalizedAppointmentId },
           ConditionExpression: "appointmentStatus IN (:booked, :prebooked)",
           UpdateExpression:
-            "SET slotId = :slotId, appointmentDateTime = :appointmentDateTime, #date = :date, monthKey = :monthKey, statusMonthKey = :statusMonthKey, startTime = :startTime, endTime = :endTime, specialty = :specialty, specialist = :specialist, sessionType = :sessionType, appointmentCost = :appointmentCost, appointmentCurrency = :appointmentCurrency, rescheduledAt = :rescheduledAt, rescheduledBy = :rescheduledBy, reviewNotes = :reviewNotes, patientMessage = :patientMessage",
+            "SET slotId = :slotId, appointmentDateTime = :appointmentDateTime, #date = :date, monthKey = :monthKey, statusMonthKey = :statusMonthKey, startTime = :startTime, endTime = :endTime, specialty = :specialty, specialtyId = :specialtyId, specialist = :specialist, specialistId = :specialistId, sessionType = :sessionType, appointmentCost = :appointmentCost, appointmentCurrency = :appointmentCurrency, rescheduledAt = :rescheduledAt, rescheduledBy = :rescheduledBy, reviewNotes = :reviewNotes, patientMessage = :patientMessage",
           ExpressionAttributeNames: {
             "#date": "date"
           },
@@ -1582,7 +1654,9 @@ export const rescheduleAppointmentByAdmin = async ({ appointmentId, slotId, upda
             ":startTime": nextSlot.startTime,
             ":endTime": nextSlot.endTime,
             ":specialty": nextSlot.specialty,
+            ":specialtyId": nextSlot.specialtyId || appointment.specialtyId || null,
             ":specialist": nextSlot.specialist,
+            ":specialistId": nextSlot.specialistId || appointment.specialistId || null,
             ":sessionType": nextSlot.sessionType,
             ":appointmentCost": nextAppointmentCost,
             ":appointmentCurrency": nextAppointmentCurrency,
@@ -1653,7 +1727,9 @@ export const rescheduleAppointmentByAdmin = async ({ appointmentId, slotId, upda
       startTime: nextSlot.startTime,
       endTime: nextSlot.endTime,
       specialty: nextSlot.specialty,
+      specialtyId: nextSlot.specialtyId || appointment.specialtyId || null,
       specialist: nextSlot.specialist,
+      specialistId: nextSlot.specialistId || appointment.specialistId || null,
       sessionType: nextSlot.sessionType,
       appointmentCost: nextAppointmentCost,
       appointmentCurrency: nextAppointmentCurrency,

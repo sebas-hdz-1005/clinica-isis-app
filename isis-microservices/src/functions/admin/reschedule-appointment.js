@@ -8,6 +8,7 @@ export const handler = handleAdmin(async (event, _context, admin) => {
   const result = await rescheduleAppointmentByAdmin({
     appointmentId: event?.pathParameters?.appointmentId,
     slotId: body.slotId,
+    softwareMedico: body.softwareMedico,
     updatedBy: admin.username || admin.email || body.updatedBy || "dashboard",
     notes: body.notes
   });

@@ -199,3 +199,20 @@ test("acepta un medico opcional y lo usa para elegir el slot", () => {
   );
   assert.equal(selected?.slotId, "elegido");
 });
+
+test("reprogramar exige un slot o un horario completo de Software Medico", async () => {
+  const { rescheduleAppointmentByAdmin } = await import("../../src/shared/appointments-service.js");
+
+  await assert.rejects(
+    () => rescheduleAppointmentByAdmin({ appointmentId: "cita-1" }),
+    (error) => error.statusCode === 400
+  );
+  await assert.rejects(
+    () =>
+      rescheduleAppointmentByAdmin({
+        appointmentId: "cita-1",
+        softwareMedico: { especialidadId: "917201", medicoId: "240", fecha: "15/01/2030", hora: "10:00" }
+      }),
+    (error) => error.statusCode === 400 && /fecha/.test(error.message)
+  );
+});

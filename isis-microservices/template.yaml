@@ -981,17 +981,25 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/functions/admin/reschedule-appointment.handler
+      Timeout: 45
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
       Policies:
         - Statement:
             Effect: Allow
             Action:
               - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:Query
               - dynamodb:UpdateItem
               - dynamodb:ConditionCheckItem
               - dynamodb:TransactWriteItems
             Resource:
               - !GetAtt AppointmentsTable.Arn
               - !GetAtt AgendaSlotsTable.Arn
+              - !Sub ${AgendaSlotsTable.Arn}/index/*
               - !GetAtt UsersTable.Arn
       Events:
         Api:
