@@ -1,10 +1,11 @@
-import { handle } from "../../shared/handler.js";
+import { handleAdmin } from "../../shared/admin-handler.js";
 import { successResponse } from "../../shared/response.js";
 import { findUserProfileByCedula } from "../../shared/users-service.js";
 import { STATUS } from "../../shared/constants.js";
 import { AppError, ERROR_CODES } from "../../shared/errors.js";
 
-export const handler = handle(async (event) => {
+// Solo administradores: devuelve datos personales del paciente.
+export const handler = handleAdmin(async (event) => {
   const cedula = String(event?.queryStringParameters?.cedula || "").trim();
 
   if (!cedula) {

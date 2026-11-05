@@ -520,6 +520,8 @@ Resources:
             ApiId: !Ref HttpApi
             Method: GET
             Path: /validar
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
 
   GetAppointmentsAvailabilityFunction:
     Type: AWS::Serverless::Function

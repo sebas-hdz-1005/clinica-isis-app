@@ -824,92 +824,6 @@
   height: 16px;
 }
 
-.home-section {
-  margin-top: 40px;
-}
-
-.home-section-title {
-  margin: 0 0 4px;
-  font-size: 1.3rem;
-}
-
-.home-section-copy {
-  margin: 0 0 16px;
-  color: var(--muted);
-}
-
-.home-validator {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
-}
-
-.home-validator-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.home-validator-form .ui-field {
-  flex: 1;
-}
-
-.home-result {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--ui-radius);
-  background: var(--panel-soft);
-}
-
-.home-result-avatar {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-deep);
-  font-weight: 800;
-}
-
-.home-result-missing .home-result-avatar {
-  background: #eef2f4;
-  color: var(--muted);
-}
-
-.home-result h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.home-result dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 12px;
-  margin: 10px 0 0;
-  font-size: 0.88rem;
-}
-
-.home-result dt {
-  color: var(--muted);
-}
-
-.home-result dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.home-result p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 /* ---------- Agendamiento publico ---------- */
 
 .booking-head {
@@ -2240,8 +2154,7 @@
 
   .admin-kpis,
   .admin-two-col,
-  .home-grid,
-  .home-validator {
+  .home-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2330,11 +2243,6 @@
 
   .booking-step-active {
     flex: 1;
-  }
-
-  .home-validator-form {
-    flex-direction: column;
-    align-items: stretch;
   }
 
   .admin-doctor-range .ui-input {
