@@ -972,6 +972,10 @@ export const findMatchingPreappointmentSlot = (slots, specialty, request) => {
         String(slot.specialtyId || "") === String(request.especialidades_id) ||
         specialtyNamesMatch(slot.specialty, specialty.nombre)
     )
+    .filter(
+      (slot) =>
+        !request.medico_id || String(slot.specialistId || "") === String(request.medico_id)
+    )
     .filter((slot) => {
       const slotConsultingRoom = slot.consultoriosId || slot.consultorios_id;
       return (
@@ -1050,6 +1054,7 @@ const resolveDashboardPreappointmentSlot = async ({ request, specialty, settings
   const requestedTime = request.hora_estimada.slice(0, 5);
   const doctors = (specialty.especialistas || []).filter(
     (doctor) =>
+      (!request.medico_id || String(doctor.id) === String(request.medico_id)) &&
       isSoftwareMedicoDoctorActive(
         settings.softwareMedicoConfig,
         specialty.id,

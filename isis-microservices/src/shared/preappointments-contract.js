@@ -78,6 +78,11 @@ export const normalizePreappointmentRequest = (payload = {}, now = new Date()) =
     throw validationError("El campo observacion_solicitud supera la longitud permitida.");
   }
 
+  const medicoId =
+    payload.medico_id === undefined || payload.medico_id === null || payload.medico_id === ""
+      ? null
+      : positiveInteger(payload.medico_id, "medico_id");
+
   return {
     tipo_documento: tipoDocumento,
     numero_documento: numeroDocumento,
@@ -86,7 +91,8 @@ export const normalizePreappointmentRequest = (payload = {}, now = new Date()) =
     hora_estimada: horaEstimada,
     especialidades_id: positiveInteger(payload.especialidades_id, "especialidades_id"),
     consultorios_id: positiveInteger(payload.consultorios_id, "consultorios_id"),
-    observacion_solicitud: observacion
+    observacion_solicitud: observacion,
+    ...(medicoId ? { medico_id: medicoId } : {})
   };
 };
 

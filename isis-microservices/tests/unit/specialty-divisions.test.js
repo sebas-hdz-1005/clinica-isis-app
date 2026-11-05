@@ -172,6 +172,8 @@ test("la agenda de una division consulta la especialidad real y oculta horas ya 
     assert.deepEqual(result, {
       especialidad_id: "917202",
       medico_id: "240",
+      cita_tipo_id: "3",
+      sede_id: "1",
       disponibilidad: [{ fecha: "2030-01-15", horarios: ["09:00"] }]
     });
   } finally {

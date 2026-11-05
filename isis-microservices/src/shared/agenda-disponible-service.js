@@ -403,6 +403,10 @@ export const getAgendaDisponibleData = async (query = {}) => {
   return {
     especialidad_id: especialidadId,
     medico_id: medicoId,
+    // Valores a reenviar en /preagendamiento (tipo y consultorios_id) para que
+    // la reserva consulte la misma agenda que se mostro.
+    cita_tipo_id: citaTipoId,
+    sede_id: sedeId,
     disponibilidad: days.filter((day) => day.horarios.length > 0)
   };
 };

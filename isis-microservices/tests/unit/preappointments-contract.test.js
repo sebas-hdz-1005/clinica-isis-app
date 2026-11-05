@@ -161,3 +161,41 @@ test("construye un slot propio a partir de la disponibilidad controlada por el d
   assert.equal(slot.source, "dashboard-software-medico");
   assert.equal(slot.slotStatus, "available");
 });
+
+test("acepta un medico opcional y lo usa para elegir el slot", () => {
+  const base = {
+    tipo_documento: "CC",
+    numero_documento: "1232888810",
+    tipo: 3,
+    fecha_estimada: "2026-08-10",
+    hora_estimada: "15:00",
+    especialidades_id: 168,
+    consultorios_id: 1
+  };
+  const now = new Date("2026-08-01T12:00:00.000Z");
+
+  assert.equal(normalizePreappointmentRequest(base, now).medico_id, undefined);
+  assert.equal(normalizePreappointmentRequest({ ...base, medico_id: "" }, now).medico_id, undefined);
+  assert.equal(normalizePreappointmentRequest({ ...base, medico_id: "240" }, now).medico_id, 240);
+  assert.throws(
+    () => normalizePreappointmentRequest({ ...base, medico_id: "abc" }, now),
+    /medico_id/
+  );
+
+  const slot = (slotId, specialistId) => ({
+    slotId,
+    specialistId,
+    slotStatus: "available",
+    isActive: true,
+    date: "2026-08-10",
+    startTime: "15:00",
+    specialty: "COSMETOLOGIA",
+    specialist: `Medico ${specialistId}`
+  });
+  const selected = findMatchingPreappointmentSlot(
+    [slot("primero", "100"), slot("elegido", "240")],
+    { id: "168", nombre: "COSMETOLOGIA" },
+    normalizePreappointmentRequest({ ...base, medico_id: 240 }, now)
+  );
+  assert.equal(selected?.slotId, "elegido");
+});

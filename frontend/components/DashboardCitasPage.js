@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAuthHeaders, clearAdminSession, loadAdminSession, saveAdminSession } from '../lib/admin-session';
+import Icon from './Icon';
 
 const DEFAULT_MONTH =
   process.env.NEXT_PUBLIC_DEFAULT_APPOINTMENTS_MONTH ||
@@ -17,135 +18,56 @@ const WEEKDAYS = [
 ];
 
 const NAV_ITEMS = [
-  { id: 'confirmaciones', label: 'Confirmar citas', description: 'Revisa, contacta y asigna horarios.', icon: 'checkCircle' },
-  { id: 'beneficios', label: 'Beneficios', description: 'Consulta usuarios e inactiva beneficios usados.', icon: 'gift' },
-  { id: 'precios', label: 'Asignar precios', description: 'Define valores por especialidad.', icon: 'dollarSign' },
-  { id: 'alertas', label: 'Enviar alertas', description: 'Gestiona campanas push para pacientes.', icon: 'bell' },
-  { id: 'agenda', label: 'Cargar agenda', description: 'Importa el archivo del mes y valida el resumen.', icon: 'upload' },
-  { id: 'disponibilidad', label: 'Agenda activa', description: 'Elige especialidades y medicos visibles.', icon: 'activity' },
-  { id: 'configuracion', label: 'Configuracion', description: 'Ajusta tiempos y notificaciones internas.', icon: 'sliders' }
+  {
+    id: 'confirmaciones',
+    label: 'Citas',
+    title: 'Citas del mes',
+    description: 'Confirma preagendamientos, gestiona las citas asignadas y agenda desde el panel.',
+    icon: 'checkCircle'
+  },
+  {
+    id: 'disponibilidad',
+    label: 'Agenda activa',
+    title: 'Agenda activa',
+    description: 'Elige qué especialidades, médicos y días puede reservar el paciente en la app.',
+    icon: 'activity'
+  },
+  {
+    id: 'precios',
+    label: 'Precios',
+    title: 'Precios por especialidad',
+    description: 'Define el valor de la cita para cada especialidad.',
+    icon: 'dollarSign'
+  },
+  {
+    id: 'beneficios',
+    label: 'Beneficios',
+    title: 'Beneficios Isis Gold Card',
+    description: 'Busca un usuario por cédula y marca los beneficios que ya utilizó.',
+    icon: 'gift'
+  },
+  {
+    id: 'alertas',
+    label: 'Alertas push',
+    title: 'Enviar alertas',
+    description: 'Envía notificaciones push a los pacientes con la app instalada.',
+    icon: 'bell'
+  },
+  {
+    id: 'agenda',
+    label: 'Cargar agenda',
+    title: 'Cargar agenda del mes',
+    description: 'Importa el archivo de agenda y revisa las últimas cargas.',
+    icon: 'upload'
+  },
+  {
+    id: 'configuracion',
+    label: 'Configuración',
+    title: 'Configuración general',
+    description: 'Precio base, duración de cada espacio y datos internos de notificación.',
+    icon: 'sliders'
+  }
 ];
-
-const ICON_PATHS = {
-  logo: (
-    <>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </>
-  ),
-  checkCircle: (
-    <>
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22 4 12 14.01 9 11.01" />
-    </>
-  ),
-  dollarSign: (
-    <>
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </>
-  ),
-  bell: (
-    <>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </>
-  ),
-  upload: (
-    <>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </>
-  ),
-  sliders: (
-    <>
-      <line x1="4" y1="21" x2="4" y2="14" />
-      <line x1="4" y1="10" x2="4" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12" y2="3" />
-      <line x1="20" y1="21" x2="20" y2="16" />
-      <line x1="20" y1="12" x2="20" y2="3" />
-      <line x1="1" y1="14" x2="7" y2="14" />
-      <line x1="9" y1="8" x2="15" y2="8" />
-      <line x1="17" y1="16" x2="23" y2="16" />
-    </>
-  ),
-  calendar: (
-    <>
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </>
-  ),
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </>
-  ),
-  activity: (
-    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-  ),
-  user: (
-    <>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </>
-  ),
-  lock: (
-    <>
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
-  eyeOff: (
-    <>
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </>
-  ),
-  logout: (
-    <>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </>
-  ),
-  gift: (
-    <>
-      <polyline points="20 12 20 22 4 22 4 12" />
-      <rect x="2" y="7" width="20" height="5" />
-      <line x1="12" y1="22" x2="12" y2="7" />
-      <path d="M12 7H7.5a2.5 2.5 0 1 1 2.45-3c.55 1.65 2.05 3 2.05 3z" />
-      <path d="M12 7h4.5a2.5 2.5 0 1 0-2.45-3C13.5 5.65 12 7 12 7z" />
-    </>
-  )
-};
-
-function Icon({ name, className }) {
-  return (
-    <svg
-      className={`icon ${className || ''}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {ICON_PATHS[name] || null}
-    </svg>
-  );
-}
 
 function getApiBaseUrl() {
   const baseUrl =
@@ -207,6 +129,77 @@ function formatDateTimeLabel(date, startTime) {
   }).format(timeDate);
 
   return `${formattedDate}, ${formattedTime}`;
+}
+
+function formatDayLabel(date) {
+  if (!date) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('es-CO', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC'
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
+function formatShortDateTime(date, time) {
+  if (!date || !time) {
+    return 'Horario pendiente';
+  }
+
+  const day = new Intl.DateTimeFormat('es-CO', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC'
+  }).format(new Date(`${date}T00:00:00Z`));
+
+  return `${day} · ${formatTimeLabel(time)}`;
+}
+
+function formatTimeLabel(time) {
+  const [hours = '00', minutes = '00'] = String(time || '').split(':');
+  return new Intl.DateTimeFormat('es-CO', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'UTC'
+  }).format(new Date(Date.UTC(2000, 0, 1, Number(hours), Number(minutes))));
+}
+
+function getInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return '?';
+  }
+
+  return `${parts[0][0]}${parts.length > 1 ? parts[parts.length - 1][0] : ''}`.toUpperCase();
+}
+
+function normalizeSearch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function formatImportStatus(status) {
+  if (status === 'completed') {
+    return 'Completada';
+  }
+
+  if (status === 'completed_with_warnings') {
+    return 'Con advertencias';
+  }
+
+  if (status === 'completed_with_conflicts') {
+    return 'Con conflictos';
+  }
+
+  return status || 'Sin estado';
 }
 
 function buildSpecialties(dashboard) {
@@ -298,7 +291,7 @@ function getSuccessPayload(payload) {
 
 function formatStatusLabel(status) {
   if (status === 'prebooked') {
-    return 'Preagendada';
+    return 'Por confirmar';
   }
 
   if (status === 'booked') {
@@ -369,7 +362,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     cedula: '',
     status: 'all'
   });
-  const [showAssignedAppointments, setShowAssignedAppointments] = useState(false);
   const [assignedPage, setAssignedPage] = useState(1);
   const [assignForm, setAssignForm] = useState({
     slotId: '',
@@ -399,6 +391,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
   const previousPendingIdsRef = useRef([]);
+  const [confirmTab, setConfirmTab] = useState('pendientes');
+  const [agendaSearch, setAgendaSearch] = useState('');
+  const [expandedSpecialties, setExpandedSpecialties] = useState([]);
 
   const specialties = useMemo(() => buildSpecialties(dashboard), [dashboard]);
   const softwareMedicoSpecialties = useMemo(
@@ -424,7 +419,6 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
       return matchesCedula && matchesStatus;
     });
   }, [assignedFilters.cedula, assignedFilters.status, scheduledAppointments]);
-  const shouldShowAssignedAppointments = showAssignedAppointments || hasAssignedFilters;
   const assignedTotalPages = Math.max(
     1,
     Math.ceil(filteredScheduledAppointments.length / ASSIGNED_APPOINTMENTS_PAGE_SIZE)
@@ -533,6 +527,15 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
     return () => window.clearInterval(interval);
   }, [month, session?.accessToken, adminProfile]);
+
+  useEffect(() => {
+    if (!feedback) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setFeedback(''), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [feedback]);
 
   useEffect(() => {
     setAssignedPage(1);
@@ -1113,6 +1116,13 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   }
 
   async function cancelAppointmentFromAdmin(appointmentId) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('¿Seguro que quieres cancelar esta cita? El horario quedará libre de nuevo.')
+    ) {
+      return;
+    }
+
     setCancellingId(appointmentId);
     setFeedback('');
     setError('');
@@ -1316,38 +1326,47 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     }
 
     return (
-      <div className="filters-form assignment-form">
-        <h4>Modificar cita</h4>
-        <label htmlFor={`${prefix}-slot-${appointmentId}`}>Nuevo horario</label>
-        <select
-          id={`${prefix}-slot-${appointmentId}`}
-          value={rescheduleForm.slotId}
-          onChange={(event) =>
-            setRescheduleForm((current) => ({ ...current, slotId: event.target.value }))
-          }
-        >
-          <option value="">Selecciona un horario disponible</option>
-          {availableSlots.map((slot) => (
-            <option key={slot.slotId} value={slot.slotId}>
-              {`${slot.specialty} - ${slot.specialist} - ${formatDateTimeLabel(slot.date, slot.startTime)}`}
+      <div className="admin-reschedule">
+        <div className="ui-field">
+          <label htmlFor={`${prefix}-slot-${appointmentId}`}>Nuevo horario</label>
+          <select
+            id={`${prefix}-slot-${appointmentId}`}
+            className="ui-select"
+            value={rescheduleForm.slotId}
+            onChange={(event) =>
+              setRescheduleForm((current) => ({ ...current, slotId: event.target.value }))
+            }
+          >
+            <option value="">
+              {availableSlots.length ? 'Selecciona un horario disponible' : 'No hay horarios con los filtros actuales'}
             </option>
-          ))}
-        </select>
+            {availableSlots.map((slot) => (
+              <option key={slot.slotId} value={slot.slotId}>
+                {`${formatDateTimeLabel(slot.date, slot.startTime)} · ${slot.specialist} · ${slot.specialty}`}
+              </option>
+            ))}
+          </select>
+          <p className="ui-hint">Los horarios salen de la pestaña Agendar desde el panel.</p>
+        </div>
 
-        <label htmlFor={`${prefix}-notes-${appointmentId}`}>Notas internas</label>
-        <input
-          id={`${prefix}-notes-${appointmentId}`}
-          value={rescheduleForm.notes}
-          onChange={(event) =>
-            setRescheduleForm((current) => ({ ...current, notes: event.target.value }))
-          }
-          placeholder="Motivo del cambio o confirmacion"
-        />
+        <div className="ui-field">
+          <label htmlFor={`${prefix}-notes-${appointmentId}`}>Nota interna</label>
+          <input
+            id={`${prefix}-notes-${appointmentId}`}
+            className="ui-input"
+            value={rescheduleForm.notes}
+            onChange={(event) =>
+              setRescheduleForm((current) => ({ ...current, notes: event.target.value }))
+            }
+            placeholder="Motivo del cambio"
+          />
+        </div>
 
         <button
           type="button"
+          className="ui-btn"
           onClick={() => rescheduleAppointment(appointmentId)}
-          disabled={reschedulingId === appointmentId}
+          disabled={reschedulingId === appointmentId || !rescheduleForm.slotId}
         >
           {reschedulingId === appointmentId ? 'Guardando...' : 'Guardar cambio'}
         </button>
@@ -1355,125 +1374,131 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     );
   }
 
-  function renderManageActions(appointment, options = {}) {
-    const allowApprove = options.allowApprove !== false;
+  function renderManageActions(appointment) {
+    const isRescheduling = rescheduleTargetId === appointment.appointmentId;
 
     return (
-      <div className="slot-actions">
-        {appointment.appointmentStatus === 'prebooked' && allowApprove ? (
-          <button
-            type="button"
-            onClick={() => reviewAppointment(appointment.appointmentId, 'approved')}
-            disabled={reviewingId === `${appointment.appointmentId}:approved`}
-          >
-            {reviewingId === `${appointment.appointmentId}:approved` ? 'Procesando...' : 'Confirmar cita'}
-          </button>
-        ) : null}
+      <div className="admin-appt-actions">
         <button
           type="button"
-          className="secondary-button"
-          onClick={() => {
-            setRescheduleTargetId(
-              rescheduleTargetId === appointment.appointmentId ? '' : appointment.appointmentId
-            );
-            setRescheduleForm({ slotId: '', notes: '' });
-          }}
-        >
-          {rescheduleTargetId === appointment.appointmentId ? 'Cerrar cambio' : 'Modificar'}
-        </button>
-        <button
-          type="button"
-          className="secondary-button danger-button"
+          className="ui-btn ui-btn-sm ui-btn-danger"
           onClick={() => cancelAppointmentFromAdmin(appointment.appointmentId)}
           disabled={cancellingId === appointment.appointmentId}
         >
           {cancellingId === appointment.appointmentId ? 'Cancelando...' : 'Cancelar'}
         </button>
+        <button
+          type="button"
+          className="ui-btn ui-btn-sm ui-btn-secondary"
+          onClick={() => {
+            setRescheduleTargetId(isRescheduling ? '' : appointment.appointmentId);
+            setRescheduleForm({ slotId: '', notes: '' });
+          }}
+        >
+          <Icon name="calendar" />
+          {isRescheduling ? 'Cerrar' : 'Cambiar horario'}
+        </button>
+        {appointment.appointmentStatus === 'prebooked' ? (
+          <button
+            type="button"
+            className="ui-btn ui-btn-sm"
+            onClick={() => reviewAppointment(appointment.appointmentId, 'approved')}
+            disabled={reviewingId === `${appointment.appointmentId}:approved`}
+          >
+            <Icon name="check" />
+            {reviewingId === `${appointment.appointmentId}:approved` ? 'Confirmando...' : 'Confirmar cita'}
+          </button>
+        ) : null}
       </div>
     );
   }
 
-  function renderConfirmaciones() {
+  function renderAppointmentCard(appointment, prefix) {
+    const isPending = appointment.appointmentStatus === 'prebooked';
+    const metaItems = [
+      { icon: 'calendar', label: 'Horario', value: formatShortDateTime(appointment.date, appointment.startTime) },
+      { icon: 'idCard', label: 'Cédula', value: appointment.cedula },
+      { icon: 'phone', label: 'Teléfono', value: appointment.patientPhone },
+      { icon: 'mail', label: 'Correo', value: appointment.patientEmail },
+      {
+        icon: 'dollarSign',
+        label: 'Valor',
+        value: formatMoney(appointment.appointmentCost, appointment.appointmentCurrency)
+      }
+    ];
+
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
+      <article key={`${prefix}-${appointment.appointmentId}`} className="ui-card admin-appt">
+        <div className="admin-appt-head">
           <div>
-            <p className="eyebrow">Seguimiento operativo</p>
-            <h2>Confirmar citas preagendadas</h2>
+            <h3>{appointment.patientName || 'Paciente sin nombre registrado'}</h3>
+            <p>
+              <span className="admin-appt-specialty">{appointment.specialty}</span>
+              {appointment.specialist ? ` · ${appointment.specialist}` : ''}
+            </p>
           </div>
-          <p className="section-copy">
-            Revisa las solicitudes nuevas, visualiza mejor los datos del paciente y asigna horarios disponibles sin salir del admin.
-          </p>
+          <span className={`ui-chip ${isPending ? 'ui-chip-warn' : 'ui-chip-ok'}`}>
+            {formatStatusLabel(appointment.appointmentStatus)}
+          </span>
         </div>
 
-        <div className="dashboard-ops-layout">
-          <section className="appointments-panel dashboard-panel-soft">
-            <div className="panel-title-row">
-              <h3>Solicitudes pendientes</h3>
-              <span className="panel-counter">{pendingAppointments.length} por revisar</span>
+        <dl className="admin-appt-meta">
+          {metaItems.map((item) => (
+            <div key={item.label}>
+              <Icon name={item.icon} />
+              <span>
+                <dt>{item.label}</dt>
+                <dd className={item.value ? '' : 'admin-muted'}>{item.value || 'Sin dato'}</dd>
+              </span>
             </div>
+          ))}
+        </dl>
 
-            <div className="appointments-list">
-              {pendingAppointments.length ? (
-                pendingAppointments.map((appointment) => (
-                  <article key={appointment.appointmentId} className="appointment-item enhanced-appointment-card">
-                    <div className="appointment-item-head">
-                      <div>
-                        <p className="status-label appointment-specialty-label">{appointment.specialty}</p>
-                        <strong>{appointment.patientName || 'Paciente sin nombre registrado'}</strong>
-                        <span>{appointment.specialist}</span>
-                      </div>
-                      <span className="status-chip status-chip-warn">Preagendada</span>
-                    </div>
+        {renderManageActions(appointment)}
+        {renderRescheduleForm(appointment.appointmentId, prefix)}
+      </article>
+    );
+  }
 
-                    <div className="appointment-data-grid">
-                      <div className="appointment-data-block">
-                        <p>Horario</p>
-                        <strong>{formatDateTimeLabel(appointment.date, appointment.startTime)}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Tipo</p>
-                        <strong>{appointment.sessionType || 'Consulta'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Cedula</p>
-                        <strong>{appointment.cedula || 'Sin dato'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Valor</p>
-                        <strong>{formatMoney(appointment.appointmentCost, appointment.appointmentCurrency)}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Telefono</p>
-                        <strong>{appointment.patientPhone || 'Sin telefono'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Correo</p>
-                        <strong>{appointment.patientEmail || 'Sin correo'}</strong>
-                      </div>
-                    </div>
+  function renderEmpty(icon, title, copy) {
+    return (
+      <div className="ui-empty">
+        <Icon name={icon} />
+        <strong>{title}</strong>
+        {copy ? <p>{copy}</p> : null}
+      </div>
+    );
+  }
 
-                    {renderManageActions(appointment)}
-                    {renderRescheduleForm(appointment.appointmentId, 'pending-reschedule')}
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">No hay citas preagendadas pendientes para esta agenda.</p>
-              )}
-            </div>
-          </section>
+  function renderPendientes() {
+    if (!pendingAppointments.length) {
+      return renderEmpty(
+        'inbox',
+        'No hay citas por confirmar',
+        `Cuando un paciente preagende una cita en ${monthLabel.replace('agenda de ', '')}, aparecerá aquí. El panel se actualiza solo cada 30 segundos.`
+      );
+    }
 
-          <section className="appointments-panel dashboard-panel-soft">
-            <div className="panel-title-row">
-              <h3>Citas asignadas</h3>
-              <span className="panel-counter">{scheduledAppointments.length} registradas</span>
-            </div>
+    return (
+      <div className="admin-list">
+        {pendingAppointments.map((appointment) => renderAppointmentCard(appointment, 'pending'))}
+      </div>
+    );
+  }
 
-            <form className="filters-form dashboard-inline-filters dashboard-assigned-filters" onSubmit={(event) => event.preventDefault()}>
-              <div>
-                <label htmlFor="assigned-cedula-filter">Buscar por cedula</label>
+  function renderAsignadas() {
+    return (
+      <div className="admin-section">
+        <div className="ui-card ui-card-body">
+          <form className="admin-filters" onSubmit={(event) => event.preventDefault()}>
+            <div className="ui-field">
+              <label htmlFor="assigned-cedula-filter">Buscar por cédula</label>
+              <div className="ui-input-icon">
+                <Icon name="search" />
                 <input
                   id="assigned-cedula-filter"
+                  className="ui-input"
+                  inputMode="numeric"
                   value={assignedFilters.cedula}
                   onChange={(event) =>
                     setAssignedFilters((current) => ({ ...current, cedula: event.target.value }))
@@ -1481,143 +1506,123 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                   placeholder="Ej. 1023899033"
                 />
               </div>
+            </div>
 
-              <div>
-                <label htmlFor="assigned-status-filter">Estado</label>
-                <select
-                  id="assigned-status-filter"
-                  value={assignedFilters.status}
-                  onChange={(event) =>
-                    setAssignedFilters((current) => ({ ...current, status: event.target.value }))
-                  }
-                >
-                  <option value="all">Todas</option>
-                  <option value="booked">Confirmadas</option>
-                  <option value="prebooked">Preagendadas</option>
-                </select>
-              </div>
+            <div className="ui-field">
+              <label htmlFor="assigned-status-filter">Estado</label>
+              <select
+                id="assigned-status-filter"
+                className="ui-select"
+                value={assignedFilters.status}
+                onChange={(event) =>
+                  setAssignedFilters((current) => ({ ...current, status: event.target.value }))
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="booked">Confirmadas</option>
+                <option value="prebooked">Por confirmar</option>
+              </select>
+            </div>
 
+            {hasAssignedFilters ? (
               <button
                 type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setAssignedFilters({ cedula: '', status: 'all' });
-                  setShowAssignedAppointments(false);
-                }}
+                className="ui-btn ui-btn-ghost"
+                onClick={() => setAssignedFilters({ cedula: '', status: 'all' })}
               >
                 Limpiar filtros
               </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setShowAssignedAppointments((current) => !current)}
-              >
-                {shouldShowAssignedAppointments ? 'Ocultar listado' : 'Ver todo'}
-              </button>
-            </form>
+            ) : null}
+          </form>
+        </div>
 
-            <div className="dashboard-assigned-summary">
-              <strong>{filteredScheduledAppointments.length}</strong>
-              <span>
-                {hasAssignedFilters
-                  ? 'citas encontradas con los filtros actuales.'
-                  : 'citas disponibles para gestion en esta agenda.'}
-              </span>
+        <p className="ui-hint">
+          {filteredScheduledAppointments.length} cita(s)
+          {hasAssignedFilters ? ' con los filtros actuales' : ` en la ${monthLabel}`}.
+        </p>
+
+        {paginatedScheduledAppointments.length ? (
+          <div className="admin-list">
+            {paginatedScheduledAppointments.map((appointment) =>
+              renderAppointmentCard(appointment, 'scheduled')
+            )}
+          </div>
+        ) : (
+          renderEmpty(
+            'search',
+            hasAssignedFilters ? 'Sin resultados' : 'Aún no hay citas este mes',
+            hasAssignedFilters ? 'Prueba con otra cédula o cambia el estado.' : null
+          )
+        )}
+
+        {filteredScheduledAppointments.length > ASSIGNED_APPOINTMENTS_PAGE_SIZE ? (
+          <div className="admin-pagination">
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-secondary"
+              onClick={() => setAssignedPage((current) => Math.max(1, current - 1))}
+              disabled={assignedPage === 1}
+            >
+              <Icon name="arrowLeft" />
+              Anterior
+            </button>
+            <span>
+              Página {assignedPage} de {assignedTotalPages}
+            </span>
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-secondary"
+              onClick={() => setAssignedPage((current) => Math.min(assignedTotalPages, current + 1))}
+              disabled={assignedPage === assignedTotalPages}
+            >
+              Siguiente
+              <Icon name="arrowRight" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderAgendarDesdePanel() {
+    const selectedSlot = availableSlots.find((slot) => slot.slotId === assignForm.slotId);
+    const sortedSlots = [...availableSlots].sort(
+      (left, right) =>
+        `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`) ||
+        String(left.specialist).localeCompare(String(right.specialist), 'es')
+    );
+    const slotsByDate = sortedSlots.reduce((groups, slot) => {
+      const current = groups.get(slot.date) || [];
+      current.push(slot);
+      groups.set(slot.date, current);
+      return groups;
+    }, new Map());
+
+    return (
+      <div className="admin-booking">
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <div>
+              <h3>Horarios disponibles</h3>
+              <p>Elige un horario y completa los datos del paciente.</p>
             </div>
-
-            {!shouldShowAssignedAppointments ? (
-              <p className="empty-state">
-                Usa los filtros para buscar por cédula o estado, o abre `Ver todo` para revisar el listado completo paginado.
-              </p>
-            ) : null}
-
-            {shouldShowAssignedAppointments ? (
-              <div className="appointments-list">
-                {paginatedScheduledAppointments.length ? (
-                  paginatedScheduledAppointments.map((appointment) => (
-                  <article key={`scheduled-${appointment.appointmentId}`} className="appointment-item enhanced-appointment-card">
-                    <div className="appointment-item-head">
-                      <div>
-                        <p className="status-label appointment-specialty-label">{appointment.specialty}</p>
-                        <strong>{appointment.patientName || 'Paciente sin nombre registrado'}</strong>
-                        <span>{appointment.specialist}</span>
-                      </div>
-                      <span className={`status-chip ${appointment.appointmentStatus === 'booked' ? 'status-chip-ok' : 'status-chip-warn'}`}>
-                        {formatStatusLabel(appointment.appointmentStatus)}
-                      </span>
-                    </div>
-
-                    <div className="appointment-data-grid">
-                      <div className="appointment-data-block">
-                        <p>Horario</p>
-                        <strong>{formatDateTimeLabel(appointment.date, appointment.startTime)}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Cedula</p>
-                        <strong>{appointment.cedula || 'Sin dato'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Telefono</p>
-                        <strong>{appointment.patientPhone || 'Sin telefono'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Correo</p>
-                        <strong>{appointment.patientEmail || 'Sin correo'}</strong>
-                      </div>
-                      <div className="appointment-data-block">
-                        <p>Pago</p>
-                        <strong>{appointment.paymentStatus || 'Sin integracion de pago'}</strong>
-                      </div>
-                    </div>
-
-                    {renderManageActions(appointment)}
-                    {renderRescheduleForm(appointment.appointmentId, 'scheduled-reschedule')}
-                  </article>
-                  ))
-                ) : (
-                  <p className="empty-state">No hay citas asignadas que coincidan con los filtros.</p>
-                )}
-              </div>
-            ) : null}
-
-            {shouldShowAssignedAppointments && filteredScheduledAppointments.length > ASSIGNED_APPOINTMENTS_PAGE_SIZE ? (
-              <div className="dashboard-pagination">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setAssignedPage((current) => Math.max(1, current - 1))}
-                  disabled={assignedPage === 1}
-                >
-                  Anterior
-                </button>
-                <span className="dashboard-pagination-label">
-                  Página {assignedPage} de {assignedTotalPages}
-                </span>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    setAssignedPage((current) => Math.min(assignedTotalPages, current + 1))
-                  }
-                  disabled={assignedPage === assignedTotalPages}
-                >
-                  Siguiente
-                </button>
-              </div>
-            ) : null}
-          </section>
-
-          <section className="appointments-panel dashboard-panel-soft">
-            <div className="panel-title-row">
-              <h3>Asignar desde agenda disponible</h3>
-              <span className="panel-counter">{availableSlots.length} opciones visibles</span>
-            </div>
-
-            <form className="filters-form dashboard-inline-filters" onSubmit={(event) => event.preventDefault()}>
-              <div>
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-secondary"
+              onClick={loadAvailableSlots}
+              disabled={loadingSlots}
+            >
+              {loadingSlots ? <span className="ui-spinner" /> : <Icon name="refresh" />}
+              Actualizar
+            </button>
+          </div>
+          <div className="ui-card-body admin-section">
+            <div className="admin-filters">
+              <div className="ui-field">
                 <label htmlFor="slot-specialty-filter">Especialidad</label>
                 <select
                   id="slot-specialty-filter"
+                  className="ui-select"
                   value={slotFilters.specialtyKey}
                   onChange={(event) =>
                     setSlotFilters((current) => ({ ...current, specialtyKey: event.target.value }))
@@ -1631,10 +1636,11 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                 </select>
               </div>
 
-              <div>
+              <div className="ui-field">
                 <label htmlFor="slot-date-filter">Fecha</label>
                 <input
                   id="slot-date-filter"
+                  className="ui-input"
                   type="date"
                   value={slotFilters.date}
                   onChange={(event) =>
@@ -1642,297 +1648,345 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                   }
                 />
               </div>
-
-              <button type="button" className="secondary-button" onClick={loadAvailableSlots} disabled={loadingSlots}>
-                {loadingSlots ? 'Consultando...' : 'Actualizar opciones'}
-              </button>
-            </form>
-
-            <div className="available-slots-panel">
-              <div className="available-slots-list">
-                {availableSlots.length ? (
-                  availableSlots.map((slot) => (
-                    <button
-                      key={slot.slotId}
-                      type="button"
-                      className={`available-slot-card ${assignForm.slotId === slot.slotId || rescheduleForm.slotId === slot.slotId ? 'available-slot-card-active' : ''}`}
-                      onClick={() => {
-                        setAssignForm((current) => ({ ...current, slotId: slot.slotId }));
-                        if (rescheduleTargetId) {
-                          setRescheduleForm((current) => ({ ...current, slotId: slot.slotId }));
-                        }
-                      }}
-                    >
-                      <strong>{slot.specialist}</strong>
-                      <span>{slot.specialty}</span>
-                      <span>{formatDateTimeLabel(slot.date, slot.startTime)}</span>
-                      <small>
-                        {slot.sessionType || 'Consulta'} · {formatMoney(slot.appointmentCost, slot.appointmentCurrency)}
-                      </small>
-                    </button>
-                  ))
-                ) : (
-                  <p className="empty-state">No hay horarios visibles con esos filtros.</p>
-                )}
-              </div>
-
-              <form className="filters-form assignment-form" onSubmit={assignAppointmentFromAdmin}>
-                <h4>Datos del paciente</h4>
-
-                <label htmlFor="assign-slot-id">Horario seleccionado</label>
-                <input
-                  id="assign-slot-id"
-                  value={assignForm.slotId}
-                  onChange={(event) =>
-                    setAssignForm((current) => ({ ...current, slotId: event.target.value }))
-                  }
-                  placeholder="Selecciona una opcion de agenda"
-                />
-
-                <label htmlFor="assign-cedula">Cedula</label>
-                <input
-                  id="assign-cedula"
-                  value={assignForm.cedula}
-                  onChange={(event) =>
-                    setAssignForm((current) => ({ ...current, cedula: event.target.value }))
-                  }
-                />
-
-                <label htmlFor="assign-name">Nombre completo</label>
-                <input
-                  id="assign-name"
-                  value={assignForm.patientName}
-                  onChange={(event) =>
-                    setAssignForm((current) => ({ ...current, patientName: event.target.value }))
-                  }
-                />
-
-                <label htmlFor="assign-email">Correo</label>
-                <input
-                  id="assign-email"
-                  type="email"
-                  value={assignForm.patientEmail}
-                  onChange={(event) =>
-                    setAssignForm((current) => ({ ...current, patientEmail: event.target.value }))
-                  }
-                />
-
-                <label htmlFor="assign-phone">Telefono</label>
-                <input
-                  id="assign-phone"
-                  value={assignForm.patientPhone}
-                  onChange={(event) =>
-                    setAssignForm((current) => ({ ...current, patientPhone: event.target.value }))
-                  }
-                />
-
-                <button type="submit" disabled={submittingAssignment}>
-                  {submittingAssignment ? 'Asignando...' : 'Preagendar desde admin'}
-                </button>
-              </form>
             </div>
-          </section>
+
+            {loadingSlots && !availableSlots.length ? (
+              <div className="ui-progress" />
+            ) : slotsByDate.size ? (
+              <div className="admin-slot-days">
+                {[...slotsByDate.entries()].map(([date, slots]) => (
+                  <div key={date} className="admin-slot-day">
+                    <h4>{formatDayLabel(date)}</h4>
+                    <div className="admin-slot-grid">
+                      {slots.map((slot) => (
+                        <button
+                          key={slot.slotId}
+                          type="button"
+                          className={`admin-slot ${assignForm.slotId === slot.slotId ? 'admin-slot-active' : ''}`}
+                          onClick={() => setAssignForm((current) => ({ ...current, slotId: slot.slotId }))}
+                          aria-pressed={assignForm.slotId === slot.slotId}
+                        >
+                          <strong>{formatTimeLabel(slot.startTime)}</strong>
+                          <span>{slot.specialist}</span>
+                          <small>{formatMoney(slot.appointmentCost, slot.appointmentCurrency)}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              renderEmpty('calendar', 'No hay horarios con estos filtros', 'Prueba otra especialidad o quita la fecha.')
+            )}
+          </div>
+        </section>
+
+        <form className="ui-card admin-sticky" onSubmit={assignAppointmentFromAdmin}>
+          <div className="ui-card-header">
+            <h3>Datos del paciente</h3>
+          </div>
+          <div className="ui-card-body admin-form">
+            <div className={`admin-selected-slot ${selectedSlot ? '' : 'admin-selected-slot-empty'}`}>
+              {selectedSlot ? (
+                <>
+                  <strong>{formatDateTimeLabel(selectedSlot.date, selectedSlot.startTime)}</strong>
+                  <span>
+                    {selectedSlot.specialist} · {selectedSlot.specialty}
+                  </span>
+                </>
+              ) : (
+                <span>Selecciona un horario de la lista.</span>
+              )}
+            </div>
+
+            <div className="ui-field">
+              <label htmlFor="assign-cedula">Cédula *</label>
+              <input
+                id="assign-cedula"
+                className="ui-input"
+                inputMode="numeric"
+                required
+                value={assignForm.cedula}
+                onChange={(event) => setAssignForm((current) => ({ ...current, cedula: event.target.value }))}
+              />
+            </div>
+
+            <div className="ui-field">
+              <label htmlFor="assign-name">Nombre completo</label>
+              <input
+                id="assign-name"
+                className="ui-input"
+                value={assignForm.patientName}
+                onChange={(event) =>
+                  setAssignForm((current) => ({ ...current, patientName: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="ui-field">
+              <label htmlFor="assign-phone">Teléfono</label>
+              <input
+                id="assign-phone"
+                className="ui-input"
+                inputMode="tel"
+                value={assignForm.patientPhone}
+                onChange={(event) =>
+                  setAssignForm((current) => ({ ...current, patientPhone: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="ui-field">
+              <label htmlFor="assign-email">Correo</label>
+              <input
+                id="assign-email"
+                className="ui-input"
+                type="email"
+                value={assignForm.patientEmail}
+                onChange={(event) =>
+                  setAssignForm((current) => ({ ...current, patientEmail: event.target.value }))
+                }
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="ui-btn ui-btn-block"
+              disabled={submittingAssignment || !assignForm.slotId || !assignForm.cedula.trim()}
+            >
+              {submittingAssignment ? 'Preagendando...' : 'Preagendar cita'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  function renderConfirmaciones() {
+    const tabs = [
+      { id: 'pendientes', label: 'Por confirmar', count: pendingAppointments.length },
+      { id: 'asignadas', label: 'Todas las citas', count: scheduledAppointments.length },
+      { id: 'agendar', label: 'Agendar desde el panel' }
+    ];
+
+    return (
+      <section className="admin-section">
+        <div className="ui-tabs" role="tablist" aria-label="Citas">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={confirmTab === tab.id}
+              className={`ui-tab ${confirmTab === tab.id ? 'ui-tab-active' : ''}`}
+              onClick={() => setConfirmTab(tab.id)}
+            >
+              {tab.label}
+              {tab.count !== undefined ? <span className="ui-badge">{tab.count}</span> : null}
+            </button>
+          ))}
         </div>
+
+        {confirmTab === 'pendientes' ? renderPendientes() : null}
+        {confirmTab === 'asignadas' ? renderAsignadas() : null}
+        {confirmTab === 'agendar' ? renderAgendarDesdePanel() : null}
       </section>
     );
   }
 
   function renderPrecios() {
+    if (!specialties.length) {
+      return renderEmpty(
+        'dollarSign',
+        'No hay especialidades para este mes',
+        'Revisa la conexión con Software Médico o la agenda del mes seleccionado.'
+      );
+    }
+
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Parametrizacion comercial</p>
-            <h2>Asignar precios por tipo de cita</h2>
+      <div className="admin-two-col">
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <div>
+              <h3>Valores por especialidad</h3>
+              <p>Haz clic en una especialidad para editar su precio.</p>
+            </div>
           </div>
-          <p className="section-copy">
-            Selecciona una especialidad cargada en la agenda y define su valor. Cada precio se aplica solo a ese servicio.
-          </p>
-        </div>
-
-        <div className="dashboard-pricing-layout">
-          <section className="appointments-panel dashboard-panel-soft">
-            <h3>Precio por especialidad</h3>
-            {specialties.length ? (
-              <form className="filters-form" onSubmit={updateMonthPricing}>
-                <label htmlFor="pricing-specialty">Tipo de cita o especialidad</label>
-                <select
-                  id="pricing-specialty"
-                  value={selectedSpecialtyKey}
-                  onChange={(event) => setSelectedSpecialtyKey(event.target.value)}
+          <div className="admin-price-list">
+            {specialties.map((item) => (
+              <div
+                key={item.specialtyKey}
+                className={`admin-price-row ${selectedSpecialtyKey === item.specialtyKey ? 'admin-price-row-active' : ''}`}
+              >
+                <div>
+                  <strong>{item.specialty}</strong>
+                  <small>
+                    {item.byStatus?.prebooked || 0} por confirmar · {item.byStatus?.booked || 0} confirmadas
+                  </small>
+                </div>
+                <span className="admin-price">{formatMoney(item.appointmentCost, item.appointmentCurrency)}</span>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-sm ui-btn-secondary"
+                  onClick={() => setSelectedSpecialtyKey(item.specialtyKey)}
                 >
-                  {specialties.map((item) => (
-                    <option key={item.specialtyKey} value={item.specialtyKey}>
-                      {item.specialty}
-                    </option>
-                  ))}
-                </select>
+                  Editar
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
 
-                <label htmlFor="pricing-cost">Precio para esta especialidad</label>
+        <form className="ui-card admin-sticky" onSubmit={updateMonthPricing}>
+          <div className="ui-card-header">
+            <h3>Editar precio</h3>
+          </div>
+          <div className="ui-card-body admin-form">
+            <div className="ui-field">
+              <label htmlFor="pricing-specialty">Especialidad</label>
+              <select
+                id="pricing-specialty"
+                className="ui-select"
+                value={selectedSpecialtyKey}
+                onChange={(event) => setSelectedSpecialtyKey(event.target.value)}
+              >
+                {specialties.map((item) => (
+                  <option key={item.specialtyKey} value={item.specialtyKey}>
+                    {item.specialty}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-form-grid">
+              <div className="ui-field">
+                <label htmlFor="pricing-cost">Valor de la cita</label>
                 <input
                   id="pricing-cost"
+                  className="ui-input"
                   inputMode="numeric"
                   value={pricingForm.appointmentCost}
                   onChange={(event) =>
                     setPricingForm((current) => ({ ...current, appointmentCost: event.target.value }))
                   }
                 />
+              </div>
 
+              <div className="ui-field">
                 <label htmlFor="pricing-currency">Moneda</label>
                 <input
                   id="pricing-currency"
+                  className="ui-input"
                   value={pricingForm.appointmentCurrency}
                   onChange={(event) =>
                     setPricingForm((current) => ({ ...current, appointmentCurrency: event.target.value }))
                   }
                 />
-
-                <button type="submit" disabled={savingPricing}>
-                  {savingPricing ? 'Actualizando...' : 'Guardar precio para la especialidad'}
-                </button>
-              </form>
-            ) : (
-              <p className="empty-state">
-                Primero carga la agenda del mes para listar las especialidades disponibles y asignar precios.
-              </p>
-            )}
-          </section>
-
-          <section className="appointments-panel dashboard-panel-soft">
-            <h3>Resumen de valores cargados</h3>
-            <div className="pricing-summary-board">
-              {specialties.length ? (
-                specialties.map((item) => (
-                  <article key={item.specialtyKey} className="pricing-summary-row">
-                    <div className="pricing-summary-main">
-                      <p className="status-label">{item.specialty}</p>
-                      <strong>{formatMoney(item.appointmentCost, item.appointmentCurrency)}</strong>
-                    </div>
-                    <div className="pricing-summary-metrics">
-                      <span>Agenda: {item.total}</span>
-                      <span>Disponibles: {item.byStatus?.available || 0}</span>
-                      <span>Preagendadas: {item.byStatus?.prebooked || 0}</span>
-                      <span>Confirmadas: {item.byStatus?.booked || 0}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => setSelectedSpecialtyKey(item.specialtyKey)}
-                    >
-                      Editar precio
-                    </button>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Aun no hay especialidades disponibles para esta agenda.</p>
-              )}
+              </div>
             </div>
-          </section>
-        </div>
-      </section>
+
+            <p className="ui-hint">
+              Vista previa: <strong>{formatMoney(pricingForm.appointmentCost, pricingForm.appointmentCurrency || 'COP')}</strong>
+            </p>
+
+            <button type="submit" className="ui-btn ui-btn-block" disabled={savingPricing}>
+              {savingPricing ? 'Guardando...' : 'Guardar precio'}
+            </button>
+          </div>
+        </form>
+      </div>
     );
   }
 
   function renderBeneficios() {
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Isis Gold Card</p>
-            <h2>Beneficios por usuario</h2>
-          </div>
-          <p className="section-copy">
-            Busca al usuario por cedula y marca como utilizado cada beneficio que ya fue redimido.
-            El cambio solo afecta al usuario seleccionado.
-          </p>
-        </div>
-
-        <section className="appointments-panel dashboard-panel-soft">
-          <form className="benefits-search-form" onSubmit={searchUserBenefits}>
-            <div>
-              <label htmlFor="benefit-user-cedula">Cedula del usuario</label>
+      <section className="admin-section">
+        <form className="ui-card ui-card-body admin-filters" onSubmit={searchUserBenefits}>
+          <div className="ui-field">
+            <label htmlFor="benefit-user-cedula">Cédula del usuario</label>
+            <div className="ui-input-icon">
+              <Icon name="search" />
               <input
                 id="benefit-user-cedula"
+                className="ui-input"
                 inputMode="numeric"
                 value={benefitCedula}
                 onChange={(event) => setBenefitCedula(event.target.value)}
-                placeholder="Ingresa la cedula"
+                placeholder="Ingresa la cédula"
               />
             </div>
-            <button type="submit" disabled={loadingBenefits}>
-              {loadingBenefits ? 'Buscando...' : 'Buscar usuario'}
-            </button>
-          </form>
-        </section>
+          </div>
+          <button type="submit" className="ui-btn" disabled={loadingBenefits}>
+            {loadingBenefits ? 'Buscando...' : 'Buscar usuario'}
+          </button>
+        </form>
 
         {benefitUserData ? (
           <>
-            <section className="appointments-panel dashboard-panel-soft benefits-user-summary">
-              <div>
-                <p className="status-label">Usuario encontrado</p>
-                <h3>{benefitUserData.user.name || 'Sin nombre registrado'}</h3>
-                <p>
-                  Cedula: <strong>{benefitUserData.user.cedula}</strong>
-                  {benefitUserData.user.email ? ` · ${benefitUserData.user.email}` : ''}
-                </p>
+            <section className="ui-card admin-user-card">
+              <div className="admin-user">
+                <span className="admin-avatar">{getInitials(benefitUserData.user.name)}</span>
+                <div>
+                  <h3>{benefitUserData.user.name || 'Sin nombre registrado'}</h3>
+                  <p>
+                    C.C. {benefitUserData.user.cedula}
+                    {benefitUserData.user.email ? ` · ${benefitUserData.user.email}` : ''}
+                  </p>
+                </div>
               </div>
-              <div className="benefits-summary-chips">
-                <span className="status-chip status-chip-ok">
-                  {benefitUserData.summary.active} activos
-                </span>
-                <span className="status-chip status-chip-warn">
-                  {benefitUserData.summary.inactive} utilizados
-                </span>
+              <div className="admin-benefit-meta">
+                <span className="ui-chip ui-chip-ok">{benefitUserData.summary.active} disponibles</span>
+                <span className="ui-chip">{benefitUserData.summary.inactive} utilizados</span>
               </div>
             </section>
 
-            <div className="benefits-admin-grid">
-              {benefitUserData.benefits.map((benefit) => (
-                <article
-                  key={benefit.benefitId}
-                  className={`benefit-admin-card ${benefit.active ? '' : 'benefit-admin-card-inactive'}`}
-                >
-                  <div className="benefit-admin-card-head">
-                    <span className={`status-chip ${benefit.active ? 'status-chip-ok' : 'status-chip-warn'}`}>
-                      {benefit.active ? 'Disponible' : 'Utilizado'}
-                    </span>
-                    {benefit.discountPercentage ? (
-                      <strong className="benefit-discount">{benefit.discountPercentage}%</strong>
-                    ) : null}
-                  </div>
-                  <div>
+            {benefitUserData.benefits.length ? (
+              <div className="admin-benefits">
+                {benefitUserData.benefits.map((benefit) => (
+                  <article
+                    key={benefit.benefitId}
+                    className={`ui-card admin-benefit ${benefit.active ? '' : 'admin-benefit-used'}`}
+                  >
+                    <div className="admin-benefit-head">
+                      <span className={`ui-chip ${benefit.active ? 'ui-chip-ok' : ''}`}>
+                        {benefit.active ? 'Disponible' : 'Utilizado'}
+                      </span>
+                      {benefit.discountPercentage ? (
+                        <span className="ui-chip ui-chip-accent">{benefit.discountPercentage}% dto.</span>
+                      ) : null}
+                    </div>
                     <h3>{benefit.title}</h3>
                     <p>{benefit.description}</p>
-                  </div>
-                  <div className="benefit-admin-meta">
-                    {benefit.includedUses > 1 ? <span>Incluye: {benefit.includedUses} servicios</span> : null}
-                    {benefit.durationMinutes ? <span>Duracion: {benefit.durationMinutes} minutos</span> : null}
-                    {!benefit.active && benefit.inactiveAt ? (
-                      <span>Inactivado: {formatUpdatedAtLabel(benefit.inactiveAt)}</span>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    className={benefit.active ? 'danger-button' : 'secondary-button'}
-                    disabled={updatingBenefitId === benefit.benefitId}
-                    onClick={() => updateUserBenefit(benefit, !benefit.active)}
-                  >
-                    {updatingBenefitId === benefit.benefitId
-                      ? 'Actualizando...'
-                      : benefit.active
-                        ? 'Marcar como utilizado'
-                        : 'Reactivar beneficio'}
-                  </button>
-                </article>
-              ))}
-            </div>
+                    <div className="admin-benefit-meta">
+                      {benefit.includedUses > 1 ? <span className="ui-chip">{benefit.includedUses} servicios</span> : null}
+                      {benefit.durationMinutes ? <span className="ui-chip">{benefit.durationMinutes} min</span> : null}
+                      {!benefit.active && benefit.inactiveAt ? (
+                        <span className="ui-chip">Usado: {formatUpdatedAtLabel(benefit.inactiveAt)}</span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={`ui-btn ui-btn-sm ${benefit.active ? 'ui-btn-danger' : 'ui-btn-secondary'}`}
+                      disabled={updatingBenefitId === benefit.benefitId}
+                      onClick={() => updateUserBenefit(benefit, !benefit.active)}
+                    >
+                      {updatingBenefitId === benefit.benefitId
+                        ? 'Actualizando...'
+                        : benefit.active
+                          ? 'Marcar como utilizado'
+                          : 'Reactivar beneficio'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              renderEmpty('gift', 'Este usuario no tiene beneficios asignados')
+            )}
           </>
+        ) : loadingBenefits ? (
+          <div className="ui-progress" />
         ) : (
-          <p className="empty-state">
-            {loadingBenefits
-              ? 'Consultando los beneficios del usuario...'
-              : 'Busca un usuario para consultar sus beneficios disponibles y utilizados.'}
-          </p>
+          renderEmpty('gift', 'Busca un usuario', 'Ingresa la cédula para ver sus beneficios disponibles y utilizados.')
         )}
       </section>
     );
@@ -1940,100 +1994,139 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
   function renderAlertas() {
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Comunicacion</p>
-            <h2>Enviar alertas y recordatorios</h2>
+      <div className="admin-two-col">
+        <form className="ui-card" onSubmit={sendCampaign}>
+          <div className="ui-card-header">
+            <h3>Nueva alerta</h3>
           </div>
-          <p className="section-copy">
-            Usa este espacio para campanas de apertura de agenda, recordatorios o novedades para pacientes.
-          </p>
-        </div>
-        <section className="appointments-panel dashboard-panel-soft">
-          <form className="filters-form" onSubmit={sendCampaign}>
-            <label htmlFor="campaign-title">Titulo</label>
-            <input
-              id="campaign-title"
-              value={campaign.title}
-              onChange={(event) => setCampaign((current) => ({ ...current, title: event.target.value }))}
-            />
+          <div className="ui-card-body admin-form">
+            <div className="ui-field">
+              <label htmlFor="campaign-title">Título</label>
+              <input
+                id="campaign-title"
+                className="ui-input"
+                maxLength={80}
+                required
+                value={campaign.title}
+                onChange={(event) => setCampaign((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Ej. Abrimos agenda de diciembre"
+              />
+            </div>
 
-            <label htmlFor="campaign-message">Mensaje</label>
-            <textarea
-              id="campaign-message"
-              value={campaign.message}
-              onChange={(event) => setCampaign((current) => ({ ...current, message: event.target.value }))}
-            />
+            <div className="ui-field">
+              <label htmlFor="campaign-message">Mensaje</label>
+              <textarea
+                id="campaign-message"
+                className="ui-textarea"
+                maxLength={240}
+                required
+                value={campaign.message}
+                onChange={(event) => setCampaign((current) => ({ ...current, message: event.target.value }))}
+              />
+              <p className="ui-hint">{campaign.message.length}/240 caracteres</p>
+            </div>
 
-            <label htmlFor="campaign-type">Tipo de envio</label>
-            <select
-              id="campaign-type"
-              value={campaign.type}
-              onChange={(event) => setCampaign((current) => ({ ...current, type: event.target.value }))}
-            >
-              <option value="general">General / blogs</option>
-            </select>
-            <p className="field-hint">
-              Por el momento las campanas solo pueden enviarse como General / blogs. Los demas tipos se habilitaran mas adelante.
-            </p>
+            <div className="ui-field">
+              <label htmlFor="campaign-type">Tipo de envío</label>
+              <select
+                id="campaign-type"
+                className="ui-select"
+                value={campaign.type}
+                onChange={(event) => setCampaign((current) => ({ ...current, type: event.target.value }))}
+              >
+                <option value="general">General / blogs</option>
+              </select>
+              <p className="ui-hint">Por ahora solo se pueden enviar alertas generales.</p>
+            </div>
 
-            <button type="submit" disabled={sendingCampaign}>
-              {sendingCampaign ? 'Enviando...' : 'Enviar alerta'}
-            </button>
-          </form>
+            <div className="admin-form-actions">
+              <button type="submit" className="ui-btn" disabled={sendingCampaign}>
+                <Icon name="bell" />
+                {sendingCampaign ? 'Enviando...' : 'Enviar alerta'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <h3>Vista previa</h3>
+          </div>
+          <div className="ui-card-body">
+            <div className="ui-toast" style={{ animation: 'none' }}>
+              <Icon name="bell" />
+              <p>
+                <strong>{campaign.title || 'Título de la alerta'}</strong>
+                <br />
+                {campaign.message || 'Así verá el paciente el mensaje en su celular.'}
+              </p>
+            </div>
+          </div>
         </section>
-      </section>
+      </div>
     );
   }
 
   function renderAgenda() {
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Carga operativa</p>
-            <h2>Cargar agenda del mes</h2>
+      <div className="admin-two-col">
+        <form className="ui-card" onSubmit={uploadAgenda}>
+          <div className="ui-card-header">
+            <div>
+              <h3>Importar archivo</h3>
+              <p>Se cargará en la {monthLabel}.</p>
+            </div>
           </div>
-          <p className="section-copy">
-            Importa el archivo mensual y revisa de inmediato las ultimas cargas para validar que todo quedo correcto.
-          </p>
-        </div>
-        <div className="dashboard-pricing-layout">
-          <section className="appointments-panel dashboard-panel-soft">
-            <form className="filters-form" onSubmit={uploadAgenda}>
-              <label htmlFor="agenda-file">Excel o base de datos mensual</label>
+          <div className="ui-card-body admin-form">
+            <label className="admin-dropzone" htmlFor="agenda-file">
+              <Icon name="upload" />
+              <strong>{agendaFile ? agendaFile.name : 'Selecciona el archivo de agenda'}</strong>
+              <span>Excel (.xlsx, .xls) o CSV</span>
               <input
                 id="agenda-file"
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 onChange={(event) => setAgendaFile(event.target.files?.[0] || null)}
               />
+            </label>
 
-              <button type="submit" disabled={uploadingAgenda}>
-                {uploadingAgenda ? 'Importando...' : 'Cargar agenda del mes'}
-              </button>
-            </form>
-          </section>
+            <button type="submit" className="ui-btn ui-btn-block" disabled={uploadingAgenda || !agendaFile}>
+              {uploadingAgenda ? 'Importando...' : 'Cargar agenda'}
+            </button>
+          </div>
+        </form>
 
-          <section className="appointments-panel dashboard-panel-soft">
-            <h3>Ultimas importaciones</h3>
-            <div className="appointments-list">
-              {imports.length ? (
-                imports.map((item) => (
-                  <article key={item.importId} className="appointment-item">
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <h3>Últimas importaciones</h3>
+          </div>
+          {imports.length ? (
+            <div>
+              {imports.map((item) => (
+                <div key={item.importId} className="admin-import">
+                  <div>
                     <strong>{item.fileName}</strong>
-                    <span>{item.createdAt}</span>
-                    <span>Estado: {item.status}</span>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Aun no hay importaciones registradas para esta agenda.</p>
-              )}
+                    <small>{formatUpdatedAtLabel(item.createdAt)}</small>
+                  </div>
+                  <span className={`ui-chip ${String(item.status).startsWith('completed') ? 'ui-chip-ok' : 'ui-chip-warn'}`}>
+                    {formatImportStatus(item.status)}
+                  </span>
+                </div>
+              ))}
             </div>
-          </section>
-        </div>
-      </section>
+          ) : (
+            <div className="ui-card-body">{renderEmpty('upload', 'Sin importaciones este mes')}</div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  function toggleExpandedSpecialty(specialtyId) {
+    setExpandedSpecialties((current) =>
+      current.includes(specialtyId)
+        ? current.filter((id) => id !== specialtyId)
+        : [...current, specialtyId]
     );
   }
 
@@ -2048,149 +2141,204 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
       return total + (softwareMedicoForm.medicosActivosPorEspecialidad[specialtyId] || []).length;
     }, 0);
+    const search = normalizeSearch(agendaSearch);
+    const visibleSpecialties = softwareMedicoSpecialties
+      .map((specialty) => {
+        const specialtyMatches = !search || normalizeSearch(specialty.specialty).includes(search);
+        const doctors = (specialty.medicos || []).filter(
+          (doctor) => specialtyMatches || normalizeSearch(formatDoctorName(doctor)).includes(search)
+        );
+        return { specialty, doctors, visible: specialtyMatches || doctors.length > 0 };
+      })
+      .filter((item) => item.visible);
+
+    if (!softwareMedicoSpecialties.length) {
+      return renderEmpty(
+        'activity',
+        'El catálogo de Software Médico no está disponible',
+        'Actualiza el panel e intenta nuevamente en unos minutos.'
+      );
+    }
 
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Software Medico</p>
-            <h2>Especialidades y medicos activos</h2>
+      <form className="admin-section" onSubmit={saveSoftwareMedicoConfig}>
+        <div className="ui-card admin-toolbar">
+          <div className="ui-input-icon">
+            <Icon name="search" />
+            <input
+              className="ui-input"
+              value={agendaSearch}
+              onChange={(event) => setAgendaSearch(event.target.value)}
+              placeholder="Buscar especialidad o médico"
+              aria-label="Buscar especialidad o médico"
+            />
           </div>
-          <p className="section-copy">
-            Controla que opciones puede consultar el paciente. Al guardar, el catalogo y la agenda de la app
-            respetaran esta seleccion.
-          </p>
+          <div className="admin-toolbar-stats" aria-live="polite">
+            <span>
+              <strong>{activeSpecialtyIds.length}</strong> de {softwareMedicoSpecialties.length} especialidades activas
+            </span>
+            <span>
+              <strong>{activeDoctorCount}</strong> médicos visibles
+            </span>
+          </div>
+          <div className="admin-toolbar-actions">
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-ghost"
+              onClick={() =>
+                setExpandedSpecialties(
+                  expandedSpecialties.length
+                    ? []
+                    : softwareMedicoSpecialties.map((specialty) => String(specialty.specialtyId))
+                )
+              }
+            >
+              {expandedSpecialties.length ? 'Contraer todas' : 'Expandir todas'}
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-secondary"
+              onClick={() => setAllSoftwareMedicoSpecialties(true)}
+            >
+              Activar todas
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-secondary"
+              onClick={() => {
+                if (window.confirm('¿Desactivar todas las especialidades? Los pacientes no podrán agendar hasta que actives alguna.')) {
+                  setAllSoftwareMedicoSpecialties(false);
+                }
+              }}
+            >
+              Desactivar todas
+            </button>
+          </div>
         </div>
 
-        {!softwareMedicoSpecialties.length ? (
-          <section className="appointments-panel dashboard-panel-soft">
-            <p className="empty-state">
-              El catalogo de Software Medico no esta disponible en este momento. Actualiza el dashboard e
-              intenta nuevamente.
-            </p>
-          </section>
-        ) : (
-          <form className="software-medico-config-form" onSubmit={saveSoftwareMedicoConfig}>
-            <div className="software-config-toolbar">
-              <div className="software-config-summary" aria-live="polite">
-                <strong>{activeSpecialtyIds.length}</strong>
-                <span>de {softwareMedicoSpecialties.length} especialidades activas</span>
-                <strong>{activeDoctorCount}</strong>
-                <span>medicos visibles en la app</span>
-              </div>
-              <div className="software-config-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setAllSoftwareMedicoSpecialties(true)}
-                >
-                  Activar todas
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setAllSoftwareMedicoSpecialties(false)}
-                >
-                  Desactivar todas
-                </button>
-              </div>
-            </div>
+        {!visibleSpecialties.length
+          ? renderEmpty('search', 'Sin resultados', `No hay especialidades ni médicos que coincidan con "${agendaSearch}".`)
+          : null}
 
-            <div className="software-specialties-grid">
-              {softwareMedicoSpecialties.map((specialty) => {
-                const specialtyId = String(specialty.specialtyId);
-                const doctors = specialty.medicos || [];
-                const isActive = activeSpecialtyIds.includes(specialtyId);
-                const activeDoctorIds =
-                  softwareMedicoForm.medicosActivosPorEspecialidad[specialtyId] || [];
-                const activeWeekdays =
-                  softwareMedicoForm.diasActivosPorEspecialidad[specialtyId] || [];
+        <div className="admin-list">
+          {visibleSpecialties.map(({ specialty, doctors }) => {
+            const specialtyId = String(specialty.specialtyId);
+            const allDoctors = specialty.medicos || [];
+            const isActive = activeSpecialtyIds.includes(specialtyId);
+            const isOpen = Boolean(search) || expandedSpecialties.includes(specialtyId);
+            const activeDoctorIds = softwareMedicoForm.medicosActivosPorEspecialidad[specialtyId] || [];
+            const activeWeekdays = softwareMedicoForm.diasActivosPorEspecialidad[specialtyId] || [];
+            const weekdaySummary =
+              activeWeekdays.length === WEEKDAYS.length
+                ? 'todos los días'
+                : activeWeekdays.length
+                  ? WEEKDAYS.filter((day) => activeWeekdays.includes(day.value)).map((day) => day.label).join(', ')
+                  : 'sin días';
 
-                return (
-                  <article
-                    key={specialtyId}
-                    className={`software-specialty-card ${isActive ? 'software-specialty-card-active' : ''}`}
+            return (
+              <article
+                key={specialtyId}
+                className={`ui-card admin-specialty ${isOpen ? 'admin-specialty-open' : ''} ${isActive ? '' : 'admin-specialty-inactive'}`}
+              >
+                <div className="admin-specialty-head">
+                  <label className="ui-switch" title={isActive ? 'Desactivar especialidad' : 'Activar especialidad'}>
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(event) => toggleSoftwareMedicoSpecialty(specialtyId, event.target.checked)}
+                      aria-label={`${isActive ? 'Desactivar' : 'Activar'} ${specialty.specialty}`}
+                    />
+                    <span className="ui-switch-track" />
+                  </label>
+                  <button
+                    type="button"
+                    className="admin-specialty-title"
+                    onClick={() => toggleExpandedSpecialty(specialtyId)}
+                    aria-expanded={isOpen}
                   >
-                    <label className="software-specialty-toggle">
-                      <input
-                        type="checkbox"
-                        checked={isActive}
-                        onChange={(event) =>
-                          toggleSoftwareMedicoSpecialty(specialtyId, event.target.checked)
-                        }
-                      />
-                      <span className="software-specialty-copy">
-                        <strong>{specialty.specialty}</strong>
-                        <small>
-                          {activeDoctorIds.length} de {doctors.length} medicos · {activeWeekdays.length} dias
-                        </small>
-                      </span>
-                    </label>
+                    <strong>{specialty.specialty}</strong>
+                    <small>
+                      {isActive
+                        ? `${activeDoctorIds.length} de ${allDoctors.length} médicos · ${weekdaySummary}`
+                        : 'Oculta para los pacientes'}
+                    </small>
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-specialty-toggle"
+                    onClick={() => toggleExpandedSpecialty(specialtyId)}
+                    aria-label={isOpen ? 'Contraer' : 'Expandir'}
+                  >
+                    <Icon name="chevronDown" />
+                  </button>
+                </div>
 
-                    <div className="software-weekdays">
-                      <div className="software-doctors-header">
-                        <span>Dias activos</span>
-                        <div className="software-doctors-actions">
+                {isOpen ? (
+                  <div className="admin-specialty-body">
+                    <div>
+                      <div className="admin-subhead">
+                        <span>Días de atención</span>
+                        <div>
                           <button
                             type="button"
+                            className="ui-btn ui-btn-sm ui-btn-ghost"
+                            disabled={!isActive}
                             onClick={() => setAllSoftwareMedicoWeekdays(specialtyId, true)}
                           >
                             Todos
                           </button>
                           <button
                             type="button"
+                            className="ui-btn ui-btn-sm ui-btn-ghost"
+                            disabled={!isActive}
                             onClick={() => setAllSoftwareMedicoWeekdays(specialtyId, false)}
                           >
                             Ninguno
                           </button>
                         </div>
                       </div>
-                      <div className="software-weekdays-grid">
-                        {WEEKDAYS.map((weekday) => (
-                          <label
-                            key={weekday.value}
-                            className={`software-weekday-option ${
-                              activeWeekdays.includes(weekday.value)
-                                ? 'software-weekday-option-active'
-                                : ''
-                            } ${!isActive ? 'software-weekday-option-disabled' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={activeWeekdays.includes(weekday.value)}
-                              disabled={!isActive}
-                              onChange={(event) =>
-                                toggleSoftwareMedicoWeekday(
-                                  specialtyId,
-                                  weekday.value,
-                                  event.target.checked
-                                )
-                              }
-                            />
-                            <span>{weekday.label}</span>
-                          </label>
-                        ))}
+                      <div className="admin-weekdays">
+                        {WEEKDAYS.map((weekday) => {
+                          const checked = activeWeekdays.includes(weekday.value);
+                          return (
+                            <label
+                              key={weekday.value}
+                              className={`ui-chip-option ${checked ? 'ui-chip-option-active' : ''} ${isActive ? '' : 'ui-chip-option-disabled'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={!isActive}
+                                onChange={(event) =>
+                                  toggleSoftwareMedicoWeekday(specialtyId, weekday.value, event.target.checked)
+                                }
+                              />
+                              {weekday.label}
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    <div className="software-doctors">
-                      <div className="software-doctors-header">
-                        <span>Medicos</span>
-                        {doctors.length ? (
-                          <div className="software-doctors-actions">
+                    <div>
+                      <div className="admin-subhead">
+                        <span>Médicos ({activeDoctorIds.length}/{allDoctors.length})</span>
+                        {allDoctors.length ? (
+                          <div>
                             <button
                               type="button"
+                              className="ui-btn ui-btn-sm ui-btn-ghost"
+                              disabled={!isActive}
                               onClick={() =>
-                                setAllSoftwareMedicoDoctors(
-                                  specialtyId,
-                                  doctors.map((doctor) => doctor.id)
-                                )
+                                setAllSoftwareMedicoDoctors(specialtyId, allDoctors.map((doctor) => doctor.id))
                               }
                             >
                               Todos
                             </button>
                             <button
                               type="button"
+                              className="ui-btn ui-btn-sm ui-btn-ghost"
+                              disabled={!isActive}
                               onClick={() => setAllSoftwareMedicoDoctors(specialtyId, [])}
                             >
                               Ninguno
@@ -2200,176 +2348,176 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                       </div>
 
                       {doctors.length ? (
-                        <div className="software-doctors-grid">
+                        <div className="admin-doctors">
                           {doctors.map((doctor) => {
                             const doctorId = String(doctor.id);
                             const doctorActive = activeDoctorIds.includes(doctorId);
-                            const doctorRange =
-                              softwareMedicoForm.rangosActivosPorMedico[specialtyId]?.[
-                                doctorId
-                              ] || { fechaInicio: '', fechaFin: '' };
+                            const doctorRange = softwareMedicoForm.rangosActivosPorMedico[specialtyId]?.[doctorId] || {
+                              fechaInicio: '',
+                              fechaFin: ''
+                            };
 
                             return (
                               <div
                                 key={doctorId}
-                                className={`software-doctor-row ${
-                                  !isActive ? 'software-doctor-option-disabled' : ''
-                                }`}
+                                className={`admin-doctor ${doctorActive && isActive ? '' : 'admin-doctor-off'}`}
                               >
-                                <label className="software-doctor-option">
+                                <label className="ui-check">
                                   <input
                                     type="checkbox"
                                     checked={doctorActive}
                                     disabled={!isActive}
                                     onChange={(event) =>
-                                      toggleSoftwareMedicoDoctor(
-                                        specialtyId,
-                                        doctorId,
-                                        event.target.checked
-                                      )
+                                      toggleSoftwareMedicoDoctor(specialtyId, doctorId, event.target.checked)
                                     }
                                   />
                                   <span>{formatDoctorName(doctor)}</span>
                                 </label>
-                                <div className="software-doctor-range">
-                                  <label>
-                                    <span>Desde</span>
-                                    <input
-                                      type="date"
-                                      value={doctorRange.fechaInicio}
-                                      max={doctorRange.fechaFin || undefined}
-                                      disabled={!isActive || !doctorActive}
-                                      onChange={(event) =>
-                                        updateSoftwareMedicoDoctorRange(
-                                          specialtyId,
-                                          doctorId,
-                                          'fechaInicio',
-                                          event.target.value
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    <span>Hasta</span>
-                                    <input
-                                      type="date"
-                                      value={doctorRange.fechaFin}
-                                      min={doctorRange.fechaInicio || undefined}
-                                      disabled={!isActive || !doctorActive}
-                                      onChange={(event) =>
-                                        updateSoftwareMedicoDoctorRange(
-                                          specialtyId,
-                                          doctorId,
-                                          'fechaFin',
-                                          event.target.value
-                                        )
-                                      }
-                                    />
-                                  </label>
+                                <div className="admin-doctor-range">
+                                  <span>Desde</span>
+                                  <input
+                                    type="date"
+                                    className="ui-input"
+                                    aria-label={`Fecha inicial de ${formatDoctorName(doctor)}`}
+                                    value={doctorRange.fechaInicio}
+                                    max={doctorRange.fechaFin || undefined}
+                                    disabled={!isActive || !doctorActive}
+                                    onChange={(event) =>
+                                      updateSoftwareMedicoDoctorRange(specialtyId, doctorId, 'fechaInicio', event.target.value)
+                                    }
+                                  />
+                                  <span>hasta</span>
+                                  <input
+                                    type="date"
+                                    className="ui-input"
+                                    aria-label={`Fecha final de ${formatDoctorName(doctor)}`}
+                                    value={doctorRange.fechaFin}
+                                    min={doctorRange.fechaInicio || undefined}
+                                    disabled={!isActive || !doctorActive}
+                                    onChange={(event) =>
+                                      updateSoftwareMedicoDoctorRange(specialtyId, doctorId, 'fechaFin', event.target.value)
+                                    }
+                                  />
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <p className="software-doctors-empty">No hay medicos asociados a esta especialidad.</p>
+                        <p className="ui-hint">No hay médicos asociados a esta especialidad.</p>
                       )}
                     </div>
-                  </article>
-                );
-              })}
-            </div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
 
-            <div className="software-config-footer">
-              <div>
-                <strong>{softwareMedicoDirty ? 'Tienes cambios pendientes' : 'Configuracion sincronizada'}</strong>
-                <span>La app solo mostrara las opciones que dejes activas.</span>
-              </div>
-              <button type="submit" disabled={savingSoftwareMedico || !softwareMedicoDirty}>
-                {savingSoftwareMedico ? 'Guardando...' : 'Guardar disponibilidad'}
-              </button>
-            </div>
-          </form>
-        )}
-      </section>
+        <div className={`ui-card admin-savebar ${softwareMedicoDirty ? 'admin-savebar-dirty' : ''}`}>
+          <div>
+            <strong>{softwareMedicoDirty ? 'Tienes cambios sin guardar' : 'Todo guardado'}</strong>
+            <span>Los pacientes solo verán las especialidades, médicos y días activos.</span>
+          </div>
+          <button type="submit" className="ui-btn" disabled={savingSoftwareMedico || !softwareMedicoDirty}>
+            {savingSoftwareMedico ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
     );
   }
 
   function renderConfiguracion() {
     return (
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Ajustes</p>
-            <h2>Configuracion general del sistema</h2>
+      <div className="admin-two-col">
+        <form className="ui-card" onSubmit={saveSettings}>
+          <div className="ui-card-header">
+            <h3>Ajustes de agenda</h3>
           </div>
-          <p className="section-copy">
-            Define el precio base de respaldo, los tiempos de agenda y los datos internos para seguimiento.
-          </p>
+          <div className="ui-card-body admin-form">
+            <div className="admin-form-grid">
+              <div className="ui-field">
+                <label htmlFor="settings-cost">Precio base de respaldo</label>
+                <input
+                  id="settings-cost"
+                  className="ui-input"
+                  inputMode="numeric"
+                  value={settingsForm.appointmentCost}
+                  onChange={(event) =>
+                    setSettingsForm((current) => ({ ...current, appointmentCost: event.target.value }))
+                  }
+                />
+                <p className="ui-hint">Se usa cuando la especialidad no tiene precio propio.</p>
+              </div>
+
+              <div className="ui-field">
+                <label htmlFor="settings-currency">Moneda</label>
+                <input
+                  id="settings-currency"
+                  className="ui-input"
+                  value={settingsForm.appointmentCurrency}
+                  onChange={(event) =>
+                    setSettingsForm((current) => ({ ...current, appointmentCurrency: event.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="ui-field">
+                <label htmlFor="settings-slot">Duración de cada cita (min)</label>
+                <input
+                  id="settings-slot"
+                  className="ui-input"
+                  inputMode="numeric"
+                  value={settingsForm.slotMinutes}
+                  onChange={(event) =>
+                    setSettingsForm((current) => ({ ...current, slotMinutes: event.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="ui-field">
+                <label htmlFor="settings-topic">Tema de notificaciones push</label>
+                <input
+                  id="settings-topic"
+                  className="ui-input"
+                  value={settingsForm.notificationsTopic}
+                  onChange={(event) =>
+                    setSettingsForm((current) => ({ ...current, notificationsTopic: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="ui-field">
+              <label htmlFor="settings-email">Correo interno de seguimiento</label>
+              <input
+                id="settings-email"
+                className="ui-input"
+                type="email"
+                value={settingsForm.notificationEmail}
+                onChange={(event) =>
+                  setSettingsForm((current) => ({ ...current, notificationEmail: event.target.value }))
+                }
+              />
+              <p className="ui-hint">Recibe un aviso cada vez que un paciente preagenda una cita.</p>
+            </div>
+
+            <div className="admin-form-actions">
+              <button type="submit" className="ui-btn" disabled={savingSettings}>
+                {savingSettings ? 'Guardando...' : 'Guardar configuración'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div className="ui-alert ui-alert-info">
+          <Icon name="alert" />
+          <span>
+            <strong>¿No llegan los correos de preagendamiento?</strong> Verifica en AWS SES que el remitente o el
+            dominio de {settingsForm.notificationEmail || 'notificacionesapp@clinicaisis.com'} esté verificado.
+          </span>
         </div>
-        <section className="appointments-panel dashboard-panel-soft">
-          <form className="filters-form" onSubmit={saveSettings}>
-            <label htmlFor="settings-cost">Precio base de respaldo</label>
-            <input
-              id="settings-cost"
-              inputMode="numeric"
-              value={settingsForm.appointmentCost}
-              onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, appointmentCost: event.target.value }))
-              }
-            />
-
-            <label htmlFor="settings-currency">Moneda base</label>
-            <input
-              id="settings-currency"
-              value={settingsForm.appointmentCurrency}
-              onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, appointmentCurrency: event.target.value }))
-              }
-            />
-
-            <label htmlFor="settings-slot">Duracion de cada espacio (minutos)</label>
-            <input
-              id="settings-slot"
-              inputMode="numeric"
-              value={settingsForm.slotMinutes}
-              onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, slotMinutes: event.target.value }))
-              }
-            />
-
-            <label htmlFor="settings-email">Correo interno de seguimiento</label>
-            <input
-              id="settings-email"
-              value={settingsForm.notificationEmail}
-              onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, notificationEmail: event.target.value }))
-              }
-            />
-
-            <label htmlFor="settings-topic">Topic de push</label>
-            <input
-              id="settings-topic"
-              value={settingsForm.notificationsTopic}
-              onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, notificationsTopic: event.target.value }))
-              }
-            />
-
-            <button type="submit" disabled={savingSettings}>
-              {savingSettings ? 'Guardando...' : 'Guardar configuracion'}
-            </button>
-          </form>
-
-          <div className="dashboard-warning-note">
-            <strong>Correo interno de preagendamiento</strong>
-            <span>
-              Si no esta llegando, debes verificar en AWS SES el remitente o el dominio de
-              `notificacionesapp@clinicaisis.com`. En este entorno esa identidad no aparece creada.
-            </span>
-          </div>
-        </section>
-      </section>
+      </div>
     );
   }
 
@@ -2401,77 +2549,118 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     return renderConfirmaciones();
   }
 
+  function renderToasts() {
+    if (!error && !feedback) {
+      return null;
+    }
+
+    return (
+      <div className="ui-toasts" aria-live="polite">
+        {error ? (
+          <div className="ui-toast ui-toast-error" role="alert">
+            <Icon name="alert" />
+            <p>{error}</p>
+            <button type="button" onClick={() => setError('')} aria-label="Cerrar mensaje">
+              <Icon name="x" />
+            </button>
+          </div>
+        ) : null}
+        {feedback ? (
+          <div className="ui-toast">
+            <Icon name="checkCircle" />
+            <p>{feedback}</p>
+            <button type="button" onClick={() => setFeedback('')} aria-label="Cerrar mensaje">
+              <Icon name="x" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   if (!authReady) {
     return (
-      <main className="page dashboard-page dashboard-admin-page">
-        <section className="card appointments-shell dashboard-shell dashboard-admin-shell">
-          <p className="lead">Validando acceso al dashboard...</p>
-        </section>
+      <main className="admin-boot">
+        <span className="ui-spinner" />
+        Validando acceso...
       </main>
     );
   }
 
   if (!session?.accessToken || !adminProfile) {
     return (
-      <main className="page dashboard-page dashboard-admin-page dashboard-login-page">
-        <section className="dashboard-login-card">
-          <div className="dashboard-login-brand">
-            <span className="dashboard-logo-badge">
+      <main className="admin-login">
+        <section className="ui-card admin-login-card">
+          <div className="admin-brand">
+            <span className="site-logo">
               <Icon name="logo" />
             </span>
-            <h1>Clinica ISIS</h1>
-            <p className="dashboard-brand-caption">Panel administrativo</p>
+            <div>
+              <strong>Clínica Isis</strong>
+              <small>Panel administrativo</small>
+            </div>
           </div>
 
-          <div className="dashboard-login-heading">
-            <h2>Acceso al sistema</h2>
-            <p className="lead">
-              Ingresa con un usuario administrador para revisar preagendas, confirmar citas y gestionar la agenda.
+          <h1>Iniciar sesión</h1>
+          <p>Ingresa con tu usuario administrador para gestionar citas y agenda.</p>
+
+          {error ? (
+            <p className="ui-alert" role="alert">
+              <Icon name="alert" />
+              {error}
             </p>
-          </div>
+          ) : null}
 
-          {error ? <p className="error">{error}</p> : null}
-
-          <form className="filters-form dashboard-login-form" onSubmit={loginAdmin}>
-            <label htmlFor="admin-cedula">Cedula</label>
-            <div className="dashboard-input-group">
-              <Icon name="user" className="dashboard-input-icon" />
-              <input
-                id="admin-cedula"
-                value={loginForm.cedula}
-                onChange={(event) => setLoginForm((current) => ({ ...current, cedula: event.target.value }))}
-                autoComplete="username"
-              />
+          <form className="admin-form" onSubmit={loginAdmin}>
+            <div className="ui-field">
+              <label htmlFor="admin-cedula">Cédula</label>
+              <div className="ui-input-icon">
+                <Icon name="user" />
+                <input
+                  id="admin-cedula"
+                  className="ui-input"
+                  inputMode="numeric"
+                  required
+                  value={loginForm.cedula}
+                  onChange={(event) => setLoginForm((current) => ({ ...current, cedula: event.target.value }))}
+                  autoComplete="username"
+                />
+              </div>
             </div>
 
-            <label htmlFor="admin-password">Contrasena</label>
-            <div className="dashboard-input-group">
-              <Icon name="lock" className="dashboard-input-icon" />
-              <input
-                id="admin-password"
-                type={showPassword ? 'text' : 'password'}
-                value={loginForm.password}
-                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                className="dashboard-input-toggle"
-                onClick={() => setShowPassword((current) => !current)}
-                aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-              >
-                <Icon name={showPassword ? 'eyeOff' : 'eye'} />
-              </button>
+            <div className="ui-field">
+              <label htmlFor="admin-password">Contraseña</label>
+              <div className="ui-input-icon">
+                <Icon name="lock" />
+                <input
+                  id="admin-password"
+                  className="ui-input"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={loginForm.password}
+                  onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="ui-input-action"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  <Icon name={showPassword ? 'eyeOff' : 'eye'} />
+                </button>
+              </div>
             </div>
 
-            <button type="submit" className="dashboard-primary-button" disabled={loggingIn}>
-              {loggingIn ? 'Ingresando...' : 'Iniciar sesion'}
+            <button type="submit" className="ui-btn ui-btn-lg ui-btn-block" disabled={loggingIn}>
+              {loggingIn ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
 
           {showHomeLink ? (
-            <Link className="ghost-link dashboard-login-back" href={homeHref}>
-              Volver al portal principal
+            <Link className="ui-btn ui-btn-ghost admin-login-back" href={homeHref}>
+              <Icon name="arrowLeft" />
+              Volver al portal
             </Link>
           ) : null}
         </section>
@@ -2479,129 +2668,138 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     );
   }
 
+  const activeNavItem = NAV_ITEMS.find((item) => item.id === activeSection) || NAV_ITEMS[0];
+  const adminName = adminProfile.name || adminProfile.email || adminProfile.cedula;
+
   return (
-    <main className="page dashboard-page dashboard-admin-page">
-      <section className="card appointments-shell dashboard-shell dashboard-admin-shell">
-        <div className="dashboard-hero">
-          <div className="dashboard-hero-copy">
-            <div className="dashboard-brand-row">
-              <span className="dashboard-logo-badge dashboard-logo-badge-sm">
-                <Icon name="logo" />
-              </span>
-              <div>
-                <p className="eyebrow">Clinica ISIS</p>
-                <p className="dashboard-brand-caption">Panel administrativo</p>
-              </div>
-            </div>
-            <h1>Panel administrativo de citas</h1>
-            <p className="lead">
-              Gestiona {monthLabel}, confirma preagendamientos, asigna precios por especialidad y coordina las notificaciones del equipo.
-            </p>
-            <p className="dashboard-month-copy">
-              Sesion activa: {adminProfile.name || adminProfile.email || adminProfile.cedula}
-            </p>
+    <div className="admin-app">
+      <aside className="admin-sidebar">
+        <div className="admin-brand">
+          <span className="site-logo">
+            <Icon name="logo" />
+          </span>
+          <div>
+            <strong>Clínica Isis</strong>
+            <small>Panel administrativo</small>
           </div>
-          <div className="dashboard-hero-aside">
-            <label htmlFor="dashboard-month">Consultar agenda</label>
-            <input
-              id="dashboard-month"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-            />
-            <p className="dashboard-month-copy">Vista actual: {monthLabel}</p>
-            <button type="button" className="secondary-button dashboard-icon-button" onClick={logoutAdmin}>
-              <Icon name="logout" />
-              Cerrar sesion
+        </div>
+
+        <nav className="admin-nav" aria-label="Secciones del panel">
+          <p className="admin-nav-label">Menú</p>
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`admin-nav-item ${activeSection === item.id ? 'admin-nav-item-active' : ''}`}
+              onClick={() => setActiveSection(item.id)}
+              aria-current={activeSection === item.id ? 'page' : undefined}
+            >
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
+              {item.id === 'confirmaciones' && pendingAppointments.length ? (
+                <span className="ui-badge" title="Citas por confirmar">
+                  {pendingAppointments.length}
+                </span>
+              ) : null}
             </button>
+          ))}
+        </nav>
+
+        <div className="admin-sidebar-footer">
+          <div className="admin-user">
+            <span className="admin-avatar">{getInitials(adminName)}</span>
+            <div>
+              <strong>{adminName}</strong>
+              <small>Administrador</small>
+            </div>
+          </div>
+          <div className="admin-sidebar-actions">
             {showHomeLink ? (
-              <Link className="ghost-link" href={homeHref}>
-                Volver al portal principal
+              <Link className="ui-btn ui-btn-sm ui-btn-secondary" href={homeHref} title="Ir al portal">
+                <Icon name="home" />
+                <span>Portal</span>
               </Link>
             ) : null}
+            <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary" onClick={logoutAdmin} title="Cerrar sesión">
+              <Icon name="logout" />
+              <span>Salir</span>
+            </button>
           </div>
         </div>
+      </aside>
 
-        {error ? <p className="error">{error}</p> : null}
-        {feedback ? <p className="success">{feedback}</p> : null}
-        {loading ? (
-          <div className="dashboard-loading-banner" aria-live="polite">
-            <div className="dashboard-loading-bar" />
-            <div className="dashboard-loading-copy">
-              <span className="dashboard-loading-spinner" />
-              <strong>Actualizando dashboard</strong>
-              <small>Estamos cargando citas, agenda y configuracion del mes seleccionado.</small>
+      <main className="admin-main">
+        <header className="admin-topbar">
+          <div>
+            <h1>{activeNavItem.title}</h1>
+            <p>{activeNavItem.description}</p>
+          </div>
+          <div className="admin-topbar-actions">
+            <span className="admin-sync">
+              {loading ? 'Actualizando...' : `Actualizado ${formatUpdatedAtLabel(lastUpdatedAt)}`}
+            </span>
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary ui-icon-btn"
+              onClick={() => loadAll(month)}
+              disabled={loading}
+              title="Actualizar"
+              aria-label="Actualizar"
+            >
+              {loading ? <span className="ui-spinner" /> : <Icon name="refresh" />}
+            </button>
+            <div className="admin-month">
+              <label htmlFor="dashboard-month">Mes</label>
+              <input
+                id="dashboard-month"
+                className="ui-input"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+              />
             </div>
           </div>
-        ) : null}
+        </header>
 
-        <div className="dashboard-summary-ribbon">
-          <article className={`status-card compact-card dashboard-kpi ${loading ? 'dashboard-kpi-loading' : ''}`}>
-            <span className="dashboard-kpi-icon dashboard-kpi-icon-blue">
-              <Icon name="calendar" />
-            </span>
-            <p className="status-label">Total de horarios</p>
-            <strong>{summary?.total ?? 0}</strong>
-            <span>Disponibles: {summary?.byStatus?.available || 0}</span>
-          </article>
-          <article className={`status-card compact-card dashboard-kpi ${loading ? 'dashboard-kpi-loading' : ''}`}>
-            <span className="dashboard-kpi-icon dashboard-kpi-icon-amber">
+        {loading ? <div className="ui-progress" aria-hidden="true" /> : null}
+
+        <div className="admin-kpis">
+          <article className={`ui-card admin-kpi ${loading ? 'admin-kpi-loading' : ''}`}>
+            <span className="admin-kpi-icon admin-kpi-icon-warn">
               <Icon name="clock" />
             </span>
-            <p className="status-label">Por confirmar</p>
-            <strong>{summary?.byStatus?.prebooked || 0}</strong>
-            <span>Confirmados: {summary?.byStatus?.booked || 0}</span>
+            <div>
+              <p>Por confirmar</p>
+              <strong>{pendingAppointments.length}</strong>
+              <small>{summary?.byStatus?.booked || 0} confirmadas este mes</small>
+            </div>
           </article>
-          <article className={`status-card compact-card dashboard-kpi ${loading ? 'dashboard-kpi-loading' : ''}`}>
-            <span className="dashboard-kpi-icon dashboard-kpi-icon-purple">
-              <Icon name="activity" />
+          <article className={`ui-card admin-kpi ${loading ? 'admin-kpi-loading' : ''}`}>
+            <span className="admin-kpi-icon">
+              <Icon name="calendar" />
             </span>
-            <p className="status-label">Especialidades activas</p>
-            <strong>{activeSpecialtiesCount}</strong>
-            <span>Correo interno: {settings?.notificationEmail || 'Sin configurar'}</span>
+            <div>
+              <p>Citas del mes</p>
+              <strong>{scheduledAppointments.length}</strong>
+              <small>{monthLabel.replace('agenda de ', '')}</small>
+            </div>
+          </article>
+          <article className={`ui-card admin-kpi ${loading ? 'admin-kpi-loading' : ''}`}>
+            <span className="admin-kpi-icon admin-kpi-icon-ink">
+              <Icon name="stethoscope" />
+            </span>
+            <div>
+              <p>Especialidades</p>
+              <strong>{activeSpecialtiesCount}</strong>
+              <small>activas de {specialties.length} en Software Médico</small>
+            </div>
           </article>
         </div>
 
-        <div className="dashboard-admin-layout">
-          <aside className="dashboard-sidebar">
-            <div className="dashboard-sidebar-card">
-              <p className="dashboard-sidebar-title">Menu de trabajo</p>
-              <div className="dashboard-nav">
-                {NAV_ITEMS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`dashboard-nav-item ${activeSection === item.id ? 'dashboard-nav-item-active' : ''}`}
-                    onClick={() => setActiveSection(item.id)}
-                  >
-                    <Icon name={item.icon} className="dashboard-nav-icon" />
-                    <span className="dashboard-nav-copy">
-                      <span>{item.label}</span>
-                      <small>{item.description}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        {renderActiveSection()}
+      </main>
 
-            <div className="dashboard-sidebar-card">
-              <p className="dashboard-sidebar-title">Resumen rapido</p>
-              <p className={`sidebar-note ${loading ? 'sidebar-note-loading' : ''}`}>
-                {loading
-                  ? 'Cargando informacion de la agenda...'
-                  : `Estas consultando la ${monthLabel} con ${pendingAppointments.length} cita(s) por revisar.`}
-              </p>
-              <p className="dashboard-sync-note">
-                Ultima actualizacion: {formatUpdatedAtLabel(lastUpdatedAt)}
-              </p>
-            </div>
-          </aside>
-
-          <div className={`dashboard-content ${loading ? 'dashboard-content-loading' : ''}`}>
-            {renderActiveSection()}
-          </div>
-        </div>
-      </section>
-    </main>
+      {renderToasts()}
+    </div>
   );
 }
