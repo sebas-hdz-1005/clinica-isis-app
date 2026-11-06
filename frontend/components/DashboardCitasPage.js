@@ -310,6 +310,36 @@ function formatImportStatus(status) {
   return status || 'Sin estado';
 }
 
+// Indices de Date#getUTCDay -> valor de WEEKDAYS.
+const WEEKDAY_BY_INDEX = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+function formatMonthName(monthKey) {
+  const [year, month] = String(monthKey).split('-').map(Number);
+  return new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(year, month - 1, 1))
+  );
+}
+
+// "Mar 3, 10, 17, 24 · 8:00 a. m. – 11:00 a. m. · Valoraciones"
+function formatScheduleRow(row) {
+  const byWeekday = new Map();
+  row.fechas.forEach((date) => {
+    const weekday = WEEKDAY_BY_INDEX[new Date(`${date}T00:00:00Z`).getUTCDay()];
+    byWeekday.set(weekday, [...(byWeekday.get(weekday) || []), Number(date.slice(8))]);
+  });
+  const days = WEEKDAYS.filter((day) => byWeekday.has(day.value))
+    .map((day) => `${day.label} ${byWeekday.get(day.value).join(', ')}`)
+    .join(' · ');
+
+  return [days, `${formatTimeLabel(row.inicio)} – ${formatTimeLabel(row.fin)}`, row.tipo]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function scheduleMonths(rows) {
+  return Array.from(new Set((rows || []).flatMap((row) => row.fechas.map((date) => date.slice(0, 7))))).sort();
+}
+
 function buildSpecialties(dashboard) {
   return Array.isArray(dashboard?.specialties) ? dashboard.specialties : [];
 }
@@ -322,6 +352,7 @@ function buildSoftwareMedicoForm(specialties, config) {
   const configuredDoctors = config?.medicosActivosPorEspecialidad || {};
   const configuredWeekdays = config?.diasActivosPorEspecialidad || {};
   const configuredRanges = config?.rangosActivosPorMedico || {};
+  const configuredSchedules = config?.horariosPorMedico || {};
   const medicosActivosPorEspecialidad = {};
   const diasActivosPorEspecialidad = {};
   const rangosActivosPorMedico = {};
@@ -365,7 +396,8 @@ function buildSoftwareMedicoForm(specialties, config) {
       : availableSpecialtyIds,
     medicosActivosPorEspecialidad,
     diasActivosPorEspecialidad,
-    rangosActivosPorMedico
+    rangosActivosPorMedico,
+    horariosPorMedico: JSON.parse(JSON.stringify(configuredSchedules))
   };
 }
 
@@ -496,6 +528,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   const [panelSlot, setPanelSlot] = useState(null);
   const [rescheduleSlot, setRescheduleSlot] = useState(null);
   const [agendaSearch, setAgendaSearch] = useState('');
+  const [scheduleFile, setScheduleFile] = useState(null);
+  const [scheduleImport, setScheduleImport] = useState(null);
+  const [loadingScheduleImport, setLoadingScheduleImport] = useState(false);
   const [expandedSpecialties, setExpandedSpecialties] = useState([]);
 
   const specialties = useMemo(() => buildSpecialties(dashboard), [dashboard]);
@@ -935,6 +970,112 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         }
       }
     }));
+  }
+
+  function removeDoctorSchedule(specialtyId, doctorId) {
+    setSoftwareMedicoDirty(true);
+    setSoftwareMedicoForm((current) => {
+      const specialtySchedules = { ...(current.horariosPorMedico[specialtyId] || {}) };
+      delete specialtySchedules[doctorId];
+      return {
+        ...current,
+        horariosPorMedico: { ...current.horariosPorMedico, [specialtyId]: specialtySchedules }
+      };
+    });
+  }
+
+  async function previewScheduleImport(event) {
+    event.preventDefault();
+    if (!scheduleFile) {
+      setError('Selecciona el Excel de la agenda de especialistas.');
+      return;
+    }
+
+    setLoadingScheduleImport(true);
+    setError('');
+    setScheduleImport(null);
+
+    try {
+      const response = await adminFetch(`${getApiBaseUrl()}/admin/agenda/schedule/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileBase64: await readFileAsBase64(scheduleFile), month })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'No fue posible leer el Excel de la agenda.');
+      }
+
+      setScheduleImport(data);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoadingScheduleImport(false);
+    }
+  }
+
+  // En las especialidades del Excel: activa la especialidad, deja solo sus medicos,
+  // usa los dias de la semana en que atienden y reemplaza el horario de ese mes.
+  function applyScheduleImport() {
+    const importMonth = scheduleImport.monthKey;
+    const knownIds = new Set(softwareMedicoSpecialties.map((specialty) => String(specialty.specialtyId)));
+    const withoutMonth = (rows) =>
+      (rows || [])
+        .map((row) => ({ ...row, fechas: row.fechas.filter((date) => !date.startsWith(importMonth)) }))
+        .filter((row) => row.fechas.length);
+
+    setSoftwareMedicoDirty(true);
+    setSoftwareMedicoForm((current) => {
+      const next = {
+        ...current,
+        especialidadesActivas: [...current.especialidadesActivas],
+        medicosActivosPorEspecialidad: { ...current.medicosActivosPorEspecialidad },
+        diasActivosPorEspecialidad: { ...current.diasActivosPorEspecialidad },
+        rangosActivosPorMedico: { ...current.rangosActivosPorMedico },
+        horariosPorMedico: { ...current.horariosPorMedico }
+      };
+
+      scheduleImport.specialties
+        .filter(({ specialtyId }) => knownIds.has(specialtyId))
+        .forEach(({ specialtyId, doctors }) => {
+          if (!next.especialidadesActivas.includes(specialtyId)) next.especialidadesActivas.push(specialtyId);
+          next.medicosActivosPorEspecialidad[specialtyId] = doctors.map((doctor) => doctor.doctorId);
+
+          const weekdays = new Set(
+            doctors.flatMap((doctor) =>
+              doctor.horarios.flatMap((row) =>
+                row.fechas.map((date) => WEEKDAY_BY_INDEX[new Date(`${date}T00:00:00Z`).getUTCDay()])
+              )
+            )
+          );
+          next.diasActivosPorEspecialidad[specialtyId] = WEEKDAYS.map((day) => day.value).filter((day) =>
+            weekdays.has(day)
+          );
+
+          const schedules = {};
+          Object.entries(current.horariosPorMedico[specialtyId] || {}).forEach(([doctorId, rows]) => {
+            const kept = withoutMonth(rows);
+            if (kept.length) schedules[doctorId] = kept;
+          });
+          const ranges = { ...(current.rangosActivosPorMedico[specialtyId] || {}) };
+          doctors.forEach((doctor) => {
+            schedules[doctor.doctorId] = [...(schedules[doctor.doctorId] || []), ...doctor.horarios];
+            ranges[doctor.doctorId] = { fechaInicio: '', fechaFin: '' };
+          });
+          next.horariosPorMedico[specialtyId] = schedules;
+          next.rangosActivosPorMedico[specialtyId] = ranges;
+        });
+
+      return next;
+    });
+
+    setExpandedSpecialties(scheduleImport.specialties.map((item) => item.specialtyId));
+    setFeedback(
+      `Agenda de ${formatMonthName(importMonth)} aplicada. Revisa las especialidades y pulsa Guardar cambios.`
+    );
+    setScheduleImport(null);
+    setScheduleFile(null);
   }
 
   async function saveSoftwareMedicoConfig(event) {
@@ -2323,6 +2464,146 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     );
   }
 
+  function renderScheduleImport() {
+    const preview = scheduleImport;
+    // Por especialidad, los medicos activos hoy que no vienen en el Excel.
+    const turnedOff = preview
+      ? preview.specialties
+          .map(({ specialtyId, specialty, doctors }) => {
+            const catalogSpecialty = softwareMedicoSpecialties.find((item) => String(item.specialtyId) === specialtyId);
+            const imported = new Set(doctors.map((doctor) => doctor.doctorId));
+            const names = (softwareMedicoForm.medicosActivosPorEspecialidad[specialtyId] || [])
+              .filter((doctorId) => !imported.has(doctorId))
+              .map((doctorId) => {
+                const doctor = catalogSpecialty?.medicos?.find((item) => String(item.id) === doctorId);
+                return doctor ? formatDoctorName(doctor) : doctorId;
+              });
+            return { specialtyId, specialty, names };
+          })
+          .filter((item) => item.names.length)
+      : [];
+    const doctorCount = preview
+      ? new Set(preview.specialties.flatMap((item) => item.doctors.map((doctor) => doctor.doctorId))).size
+      : 0;
+
+    return (
+      <section className="ui-card admin-schedule-import">
+        <div className="ui-card-header">
+          <div>
+            <h3>Importar agenda de especialistas</h3>
+            <p>
+              Sube el Excel del mes. Se activan los médicos y horarios que trae y los pacientes solo ven
+              horarios dentro de ellos.
+            </p>
+          </div>
+        </div>
+        <div className="ui-card-body admin-form">
+          {!preview ? (
+            <div className="admin-schedule-upload">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="ui-input"
+                aria-label="Excel de la agenda de especialistas"
+                onChange={(event) => setScheduleFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                className="ui-btn ui-btn-secondary"
+                disabled={!scheduleFile || loadingScheduleImport}
+                onClick={previewScheduleImport}
+              >
+                <Icon name="upload" />
+                {loadingScheduleImport ? 'Leyendo Excel...' : 'Revisar Excel'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="admin-schedule-summary">
+                <strong>{formatMonthName(preview.monthKey)}</strong> · {preview.specialties.length} especialidades ·{' '}
+                {doctorCount} médicos
+              </p>
+
+              <div className="admin-schedule-preview">
+                {preview.specialties.map((item) => (
+                  <div key={item.specialtyId}>
+                    <strong>{item.specialty}</strong>
+                    <ul>
+                      {item.doctors.map((doctor) => (
+                        <li key={doctor.doctorId}>
+                          {doctor.doctorName}
+                          <small> ← “{doctor.excelName}”</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              {preview.interpretations.length ? (
+                <div className="admin-schedule-notes">
+                  <strong>Fechas que Excel guardó como decimales</strong>
+                  <ul>
+                    {preview.interpretations.map((item) => (
+                      <li key={`${item.row}-${item.original}`}>
+                        {item.specialist}: “{item.original}” se leyó como{' '}
+                        {item.fechas.map((date) => Number(date.slice(8))).join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {turnedOff.length ? (
+                <div className="admin-schedule-notes admin-schedule-notes-warn">
+                  <strong>Se ocultarán porque no están en el Excel</strong>
+                  <ul>
+                    {turnedOff.map((item) => (
+                      <li key={item.specialtyId}>
+                        <b>
+                          {item.specialty} ({item.names.length}):
+                        </b>{' '}
+                        {item.names.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {preview.unmatched.length || preview.warnings.length ? (
+                <div className="admin-schedule-notes admin-schedule-notes-warn">
+                  <strong>Filas que no se importaron</strong>
+                  <ul>
+                    {preview.unmatched.map((item) => (
+                      <li key={`u-${item.row}`}>
+                        Fila {item.row} · {item.name}: {item.reason}
+                      </li>
+                    ))}
+                    {preview.warnings.map((item) => (
+                      <li key={`w-${item.row}-${item.message}`}>
+                        Fila {item.row} · {item.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="admin-form-actions">
+                <button type="button" className="ui-btn ui-btn-ghost" onClick={() => setScheduleImport(null)}>
+                  Descartar
+                </button>
+                <button type="button" className="ui-btn" onClick={applyScheduleImport}>
+                  <Icon name="check" />
+                  Aplicar a Agenda activa
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   function renderDisponibilidad() {
     const activeSpecialtyIds = softwareMedicoForm.especialidadesActivas;
     const activeDoctorCount = softwareMedicoSpecialties.reduce((total, specialty) => {
@@ -2355,6 +2636,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
     return (
       <form className="admin-section" onSubmit={saveSoftwareMedicoConfig}>
+        {renderScheduleImport()}
+
         <div className="ui-card admin-toolbar">
           <div className="ui-input-icon">
             <Icon name="search" />
@@ -2421,6 +2704,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
             const isOpen = Boolean(search) || expandedSpecialties.includes(specialtyId);
             const activeDoctorIds = softwareMedicoForm.medicosActivosPorEspecialidad[specialtyId] || [];
             const activeWeekdays = softwareMedicoForm.diasActivosPorEspecialidad[specialtyId] || [];
+            const scheduledDoctors = Object.keys(softwareMedicoForm.horariosPorMedico?.[specialtyId] || {}).filter(
+              (doctorId) => activeDoctorIds.includes(doctorId)
+            ).length;
             const weekdaySummary =
               activeWeekdays.length === WEEKDAYS.length
                 ? 'todos los días'
@@ -2452,7 +2738,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                     <strong>{specialty.specialty}</strong>
                     <small>
                       {isActive
-                        ? `${activeDoctorIds.length} de ${allDoctors.length} médicos · ${weekdaySummary}`
+                        ? `${activeDoctorIds.length} de ${allDoctors.length} médicos · ${weekdaySummary}${
+                            scheduledDoctors ? ` · horario cargado para ${scheduledDoctors}` : ''
+                          }`
                         : 'Oculta para los pacientes'}
                     </small>
                   </button>
@@ -2549,6 +2837,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                               fechaInicio: '',
                               fechaFin: ''
                             };
+                            const doctorSchedule = softwareMedicoForm.horariosPorMedico?.[specialtyId]?.[doctorId] || [];
 
                             return (
                               <div
@@ -2592,6 +2881,29 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
                                     }
                                   />
                                 </div>
+                                {doctorSchedule.length ? (
+                                  <div className="admin-doctor-schedule">
+                                    <div className="admin-doctor-schedule-head">
+                                      <span>
+                                        <Icon name="clock" />
+                                        Horario de {scheduleMonths(doctorSchedule).map(formatMonthName).join(', ')}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="ui-btn ui-btn-sm ui-btn-ghost"
+                                        disabled={!isActive}
+                                        onClick={() => removeDoctorSchedule(specialtyId, doctorId)}
+                                      >
+                                        Quitar
+                                      </button>
+                                    </div>
+                                    <ul>
+                                      {doctorSchedule.map((row, index) => (
+                                        <li key={`${row.inicio}-${row.fin}-${index}`}>{formatScheduleRow(row)}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
                               </div>
                             );
                           })}
@@ -2610,7 +2922,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
         <div className={`ui-card admin-savebar ${softwareMedicoDirty ? 'admin-savebar-dirty' : ''}`}>
           <div>
             <strong>{softwareMedicoDirty ? 'Tienes cambios sin guardar' : 'Todo guardado'}</strong>
-            <span>Los pacientes solo verán las especialidades, médicos y días activos.</span>
+            <span>Los pacientes solo verán las especialidades, médicos, días y horarios activos.</span>
           </div>
           <button type="submit" className="ui-btn" disabled={savingSoftwareMedico || !softwareMedicoDirty}>
             {savingSoftwareMedico ? 'Guardando...' : 'Guardar cambios'}

@@ -818,6 +818,25 @@ Resources:
             Auth:
               Authorizer: CognitoJwtAuthorizer
 
+  PreviewAgendaScheduleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/admin/preview-agenda-schedule.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          SOFTWARE_MEDICO_USERNAME: !Ref SoftwareMedicoUsername
+          SOFTWARE_MEDICO_PASSWORD: !Ref SoftwareMedicoPassword
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/agenda/schedule/preview
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
   UpdateAppointmentsSettingsFunction:
     Type: AWS::Serverless::Function
     Properties:

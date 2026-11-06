@@ -13,9 +13,11 @@ import {
 } from "./software-medico-service.js";
 import {
   getSoftwareMedicoActiveWeekdays,
+  getSoftwareMedicoDoctorTimeRanges,
   isSoftwareMedicoDoctorAvailableBetween,
   isSoftwareMedicoDoctorActive,
-  isSoftwareMedicoSpecialtyActive
+  isSoftwareMedicoSpecialtyActive,
+  isTimeWithinRanges
 } from "./software-medico-config.js";
 
 const MAX_DATE_RANGE_DAYS = 31;
@@ -366,6 +368,13 @@ export const getAgendaDisponibleData = async (query = {}) => {
       specialty.id
     )
   };
+  // Horario importado desde Agenda activa: dias y franjas en que atiende el medico.
+  const timeRangesByDate = new Map(
+    enumerateDates(start, end).map((date) => [
+      date,
+      getSoftwareMedicoDoctorTimeRanges(settings.softwareMedicoConfig, specialty.id, medicoId, date)
+    ])
+  );
   const activeDates = enumerateDates(start, end).filter((date) =>
     isDateEnabled(date, specialtyConfig) &&
     isSoftwareMedicoDoctorAvailableBetween(
@@ -373,7 +382,8 @@ export const getAgendaDisponibleData = async (query = {}) => {
       specialty.id,
       medicoId,
       date
-    )
+    ) &&
+    (timeRangesByDate.get(date) === null || timeRangesByDate.get(date).length > 0)
   );
 
   if (!activeDates.length) {
@@ -397,7 +407,10 @@ export const getAgendaDisponibleData = async (query = {}) => {
         sedeId,
         fecha
       })
-    ).filter((hora) => !takenTimes.has(`${fecha}|${hora}`))
+    ).filter(
+      (hora) =>
+        !takenTimes.has(`${fecha}|${hora}`) && isTimeWithinRanges(timeRangesByDate.get(fecha), hora)
+    )
   }));
 
   return {

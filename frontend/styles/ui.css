@@ -1933,6 +1933,92 @@ button.ui-chip-option {
   color: var(--muted);
 }
 
+.admin-doctor-schedule {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+  font-size: 0.8rem;
+}
+
+.admin-doctor-schedule-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+
+.admin-doctor-schedule-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-doctor-schedule-head .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.admin-doctor-schedule ul {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.admin-schedule-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-schedule-upload .ui-input {
+  flex: 1 1 260px;
+}
+
+.admin-schedule-summary {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.admin-schedule-summary strong {
+  text-transform: capitalize;
+}
+
+.admin-schedule-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.admin-schedule-preview ul,
+.admin-schedule-notes ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.admin-schedule-preview small {
+  color: var(--muted);
+}
+
+.admin-schedule-notes {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-size: 0.85rem;
+}
+
+.admin-schedule-notes-warn {
+  background: var(--ui-warn-soft);
+  color: var(--ui-warn);
+}
+
 .admin-doctor-range {
   display: flex;
   align-items: center;

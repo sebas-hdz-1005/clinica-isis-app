@@ -74,6 +74,7 @@ export const inheritSpecialtyDivisionsConfig = (config) => {
   const medicos = { ...config.medicosActivosPorEspecialidad };
   const dias = { ...config.diasActivosPorEspecialidad };
   const rangos = { ...config.rangosActivosPorMedico };
+  const horarios = { ...config.horariosPorMedico };
   const activas = config.especialidadesActivas
     ? [...config.especialidadesActivas]
     : null;
@@ -85,6 +86,7 @@ export const inheritSpecialtyDivisionsConfig = (config) => {
       if (medicos[providerId] !== undefined) medicos[id] = [...medicos[providerId]];
       if (dias[providerId] !== undefined) dias[id] = [...dias[providerId]];
       if (rangos[providerId] !== undefined) rangos[id] = { ...rangos[providerId] };
+      if (horarios[providerId] !== undefined) horarios[id] = { ...horarios[providerId] };
       if (activas && activas.includes(providerId) && !activas.includes(id)) {
         activas.push(id);
       }
@@ -96,6 +98,7 @@ export const inheritSpecialtyDivisionsConfig = (config) => {
     especialidadesActivas: activas,
     medicosActivosPorEspecialidad: medicos,
     diasActivosPorEspecialidad: dias,
-    rangosActivosPorMedico: rangos
+    rangosActivosPorMedico: rangos,
+    horariosPorMedico: horarios
   };
 };

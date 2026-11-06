@@ -41,10 +41,34 @@ const normalizeOptionalDate = (value) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 };
 
+const normalizeTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match || Number(match[1]) > 24 || Number(match[2]) > 59) return "";
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+};
+
+// Horario de un medico: filas { fechas, inicio, fin, tipo } (fin no incluido).
+const normalizeScheduleRows = (rows) => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => {
+      const fechas = Array.from(
+        new Set((Array.isArray(row?.fechas) ? row.fechas : []).map(normalizeOptionalDate).filter(Boolean))
+      ).sort();
+      const inicio = normalizeTime(row?.inicio);
+      const fin = normalizeTime(row?.fin);
+      if (!fechas.length || !inicio || !fin || inicio >= fin) return null;
+      const tipo = String(row?.tipo || "").trim().slice(0, 60);
+      return { fechas, inicio, fin, ...(tipo ? { tipo } : {}) };
+    })
+    .filter(Boolean);
+};
+
 export const normalizeSoftwareMedicoConfig = (value = {}) => {
   const medicosActivosPorEspecialidad = {};
   const diasActivosPorEspecialidad = {};
   const rangosActivosPorMedico = {};
+  const horariosPorMedico = {};
 
   Object.entries(value?.medicosActivosPorEspecialidad || {}).forEach(
     ([specialtyIdValue, doctorIds]) => {
@@ -94,13 +118,46 @@ export const normalizeSoftwareMedicoConfig = (value = {}) => {
     }
   );
 
+  Object.entries(value?.horariosPorMedico || {}).forEach(([specialtyIdValue, doctorSchedules]) => {
+    const specialtyId = normalizeId(specialtyIdValue);
+    if (!specialtyId || !doctorSchedules || typeof doctorSchedules !== "object") return;
+
+    const normalizedSchedules = {};
+    Object.entries(doctorSchedules).forEach(([doctorIdValue, rows]) => {
+      const doctorId = normalizeId(doctorIdValue);
+      const normalizedRows = normalizeScheduleRows(rows);
+      if (doctorId && normalizedRows.length) normalizedSchedules[doctorId] = normalizedRows;
+    });
+
+    if (Object.keys(normalizedSchedules).length) {
+      horariosPorMedico[specialtyId] = normalizedSchedules;
+    }
+  });
+
   return {
     especialidadesActivas: normalizeIdList(value?.especialidadesActivas),
     medicosActivosPorEspecialidad,
     diasActivosPorEspecialidad,
-    rangosActivosPorMedico
+    rangosActivosPorMedico,
+    horariosPorMedico
   };
 };
+
+// Franjas en que atiende el medico ese dia segun el horario importado.
+// null = el mes no tiene horario cargado y no se restringe (se usa Software Medico tal cual).
+export const getSoftwareMedicoDoctorTimeRanges = (config, specialtyId, doctorId, date) => {
+  const rows =
+    normalizeSoftwareMedicoConfig(config).horariosPorMedico[String(specialtyId)]?.[String(doctorId)] || [];
+  const month = String(date || "").slice(0, 7);
+  if (!rows.some((row) => row.fechas.some((fecha) => fecha.startsWith(month)))) return null;
+
+  return rows
+    .filter((row) => row.fechas.includes(date))
+    .map(({ inicio, fin }) => ({ inicio, fin }));
+};
+
+export const isTimeWithinRanges = (ranges, time) =>
+  ranges === null || ranges.some(({ inicio, fin }) => time >= inicio && time < fin);
 
 export const isSoftwareMedicoSpecialtyActive = (config, specialtyId) => {
   const normalized = normalizeSoftwareMedicoConfig(config);
