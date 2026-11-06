@@ -150,6 +150,150 @@ function normalizeSearch(value) {
     .trim();
 }
 
+const DATE_RANGE_OPTIONS = [
+  { id: 'all', label: 'Todo el mes' },
+  { id: 'today', label: 'Hoy' },
+  { id: 'tomorrow', label: 'Mañana' },
+  { id: 'week', label: 'Esta semana' },
+  { id: 'custom', label: 'Rango' }
+];
+
+const PENDING_SORT_OPTIONS = [
+  { id: 'upcoming', label: 'Cita más próxima' },
+  { id: 'oldest', label: 'Solicitud más antigua' },
+  { id: 'newest', label: 'Solicitud más reciente' }
+];
+
+const EMPTY_LIST_FILTERS = {
+  query: '',
+  specialty: '',
+  specialist: '',
+  range: 'all',
+  from: '',
+  to: '',
+  status: 'all'
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Fecha de hoy en Colombia, que es la zona de la agenda.
+function bogotaToday() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+}
+
+function shiftDate(date, days) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function resolveDateRange(filters) {
+  const today = bogotaToday();
+
+  if (filters.range === 'today') {
+    return { from: today, to: today };
+  }
+
+  if (filters.range === 'tomorrow') {
+    const tomorrow = shiftDate(today, 1);
+    return { from: tomorrow, to: tomorrow };
+  }
+
+  if (filters.range === 'week') {
+    const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
+    const monday = shiftDate(today, -((weekday + 6) % 7));
+    return { from: monday, to: shiftDate(monday, 6) };
+  }
+
+  if (filters.range === 'custom') {
+    return { from: filters.from, to: filters.to };
+  }
+
+  return { from: '', to: '' };
+}
+
+function hasListFilters(filters) {
+  return Boolean(
+    filters.query.trim() ||
+      filters.specialty ||
+      filters.specialist ||
+      filters.range !== 'all' ||
+      filters.status !== 'all'
+  );
+}
+
+// Busca por nombre, correo, cedula o telefono y aplica especialidad, profesional, estado y fechas.
+function filterAppointments(appointments, filters) {
+  const query = normalizeSearch(filters.query);
+  const queryDigits = filters.query.replace(/\D/g, '');
+  const { from, to } = resolveDateRange(filters);
+
+  return appointments.filter((appointment) => {
+    if (filters.specialty && appointment.specialty !== filters.specialty) return false;
+    if (filters.specialist && appointment.specialist !== filters.specialist) return false;
+    if (filters.status !== 'all' && appointment.appointmentStatus !== filters.status) return false;
+    if (from && appointment.date < from) return false;
+    if (to && appointment.date > to) return false;
+    if (!query) return true;
+
+    const text = normalizeSearch(
+      [appointment.patientName, appointment.patientEmail, appointment.cedula].join(' ')
+    );
+    const phone = String(appointment.patientPhone || '').replace(/\D/g, '');
+
+    return text.includes(query) || (queryDigits.length >= 3 && phone.includes(queryDigits));
+  });
+}
+
+function sortPendingAppointments(appointments, sort) {
+  const byRequest = (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  const sorted = [...appointments];
+
+  if (sort === 'oldest') {
+    return sorted.sort(byRequest);
+  }
+
+  if (sort === 'newest') {
+    return sorted.sort((a, b) => byRequest(b, a));
+  }
+
+  return sorted.sort((a, b) =>
+    String(a.appointmentDateTime || '').localeCompare(String(b.appointmentDateTime || ''))
+  );
+}
+
+// Milisegundos que faltan para la cita. Colombia esta en UTC-5 todo el ano.
+function getMsUntilAppointment(appointment, now) {
+  if (!appointment.date || !appointment.startTime) {
+    return null;
+  }
+
+  const start = Date.parse(`${appointment.date}T${String(appointment.startTime).slice(0, 5)}:00-05:00`);
+  return Number.isNaN(start) ? null : start - now;
+}
+
+function formatElapsed(isoDate, now) {
+  const elapsed = now - Date.parse(isoDate || '');
+  if (Number.isNaN(elapsed)) {
+    return '';
+  }
+
+  const minutes = Math.max(0, Math.round(elapsed / 60000));
+  if (minutes < 1) return 'hace un momento';
+  if (minutes < 60) return `hace ${minutes} min`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+
+  const days = Math.round(hours / 24);
+  return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
+}
+
 function formatImportStatus(status) {
   if (status === 'completed') {
     return 'Completada';
@@ -317,10 +461,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     rangosActivosPorMedico: {}
   });
   const [softwareMedicoDirty, setSoftwareMedicoDirty] = useState(false);
-  const [assignedFilters, setAssignedFilters] = useState({
-    cedula: '',
-    status: 'all'
-  });
+  const [listFilters, setListFilters] = useState(EMPTY_LIST_FILTERS);
+  const [pendingSort, setPendingSort] = useState('upcoming');
   const [assignedPage, setAssignedPage] = useState(1);
   const [assignForm, setAssignForm] = useState({
     slotId: '',
@@ -368,18 +510,31 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   const monthLabel = useMemo(() => formatMonthLabel(month), [month]);
   const pendingAppointments = dashboard?.pending?.appointments || [];
   const scheduledAppointments = dashboard?.scheduledAppointments || [];
-  const hasAssignedFilters = assignedFilters.cedula.trim() || assignedFilters.status !== 'all';
-  const filteredScheduledAppointments = useMemo(() => {
-    const cedulaFilter = assignedFilters.cedula.trim();
+  const pendingFilters = useMemo(() => ({ ...listFilters, status: 'all' }), [listFilters]);
+  const hasPendingFilters = hasListFilters(pendingFilters);
+  const hasAssignedFilters = hasListFilters(listFilters);
+  const filteredPendingAppointments = useMemo(
+    () => sortPendingAppointments(filterAppointments(pendingAppointments, pendingFilters), pendingSort),
+    [pendingAppointments, pendingFilters, pendingSort]
+  );
+  const filteredScheduledAppointments = useMemo(
+    () => filterAppointments(scheduledAppointments, listFilters),
+    [listFilters, scheduledAppointments]
+  );
+  const appointmentFilterOptions = useMemo(() => {
+    const all = [...pendingAppointments, ...scheduledAppointments];
+    const unique = (values) =>
+      Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
 
-    return scheduledAppointments.filter((appointment) => {
-      const matchesCedula = !cedulaFilter || String(appointment.cedula || '').includes(cedulaFilter);
-      const matchesStatus =
-        assignedFilters.status === 'all' || appointment.appointmentStatus === assignedFilters.status;
-
-      return matchesCedula && matchesStatus;
-    });
-  }, [assignedFilters.cedula, assignedFilters.status, scheduledAppointments]);
+    return {
+      specialties: unique(all.map((appointment) => appointment.specialty)),
+      specialists: unique(
+        all
+          .filter((appointment) => !listFilters.specialty || appointment.specialty === listFilters.specialty)
+          .map((appointment) => appointment.specialist)
+      )
+    };
+  }, [pendingAppointments, scheduledAppointments, listFilters.specialty]);
   const assignedTotalPages = Math.max(
     1,
     Math.ceil(filteredScheduledAppointments.length / ASSIGNED_APPOINTMENTS_PAGE_SIZE)
@@ -487,7 +642,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
   useEffect(() => {
     setAssignedPage(1);
-  }, [assignedFilters.cedula, assignedFilters.status, month, scheduledAppointments.length]);
+  }, [listFilters, month, scheduledAppointments.length]);
 
   useEffect(() => {
     if (assignedPage > assignedTotalPages) {
@@ -1367,6 +1522,9 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
 
   function renderAppointmentCard(appointment, prefix) {
     const isPending = appointment.appointmentStatus === 'prebooked';
+    const now = Date.now();
+    const msUntil = isPending ? getMsUntilAppointment(appointment, now) : null;
+    const requestedAgo = isPending && appointment.createdAt ? formatElapsed(appointment.createdAt, now) : '';
     const metaItems = [
       { icon: 'calendar', label: 'Horario', value: formatShortDateTime(appointment.date, appointment.startTime) },
       { icon: 'idCard', label: 'Cédula', value: appointment.cedula },
@@ -1388,10 +1546,25 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
               <span className="admin-appt-specialty">{appointment.specialty}</span>
               {appointment.specialist ? ` · ${appointment.specialist}` : ''}
             </p>
+            {requestedAgo ? <p className="admin-appt-requested">Solicitada {requestedAgo}</p> : null}
           </div>
-          <span className={`ui-chip ${isPending ? 'ui-chip-warn' : 'ui-chip-ok'}`}>
-            {formatStatusLabel(appointment.appointmentStatus)}
-          </span>
+          <div className="admin-appt-chips">
+            {msUntil !== null && msUntil < 0 ? (
+              <span className="ui-chip ui-chip-danger">
+                <Icon name="alert" />
+                La hora ya pasó
+              </span>
+            ) : null}
+            {msUntil !== null && msUntil >= 0 && msUntil < DAY_MS ? (
+              <span className="ui-chip ui-chip-danger">
+                <Icon name="clock" />
+                En menos de 24 h
+              </span>
+            ) : null}
+            <span className={`ui-chip ${isPending ? 'ui-chip-warn' : 'ui-chip-ok'}`}>
+              {formatStatusLabel(appointment.appointmentStatus)}
+            </span>
+          </div>
         </div>
 
         <dl className="admin-appt-meta">
@@ -1422,6 +1595,157 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     );
   }
 
+  function renderListFilters(scope) {
+    const isPendingScope = scope === 'pendientes';
+    const active = isPendingScope ? hasPendingFilters : hasAssignedFilters;
+    const updateFilters = (patch) => setListFilters((current) => ({ ...current, ...patch }));
+
+    return (
+      <div className="ui-card ui-card-body admin-filter-panel">
+        <div className="admin-filters">
+          <div className="ui-field admin-filter-search">
+            <label htmlFor={`${scope}-search`}>Buscar paciente</label>
+            <div className="ui-input-icon">
+              <Icon name="search" />
+              <input
+                id={`${scope}-search`}
+                className="ui-input"
+                type="search"
+                value={listFilters.query}
+                onChange={(event) => updateFilters({ query: event.target.value })}
+                placeholder="Nombre, cédula, teléfono o correo"
+              />
+            </div>
+          </div>
+
+          <div className="ui-field">
+            <label htmlFor={`${scope}-specialty`}>Especialidad</label>
+            <select
+              id={`${scope}-specialty`}
+              className="ui-select"
+              value={listFilters.specialty}
+              onChange={(event) => updateFilters({ specialty: event.target.value, specialist: '' })}
+            >
+              <option value="">Todas</option>
+              {appointmentFilterOptions.specialties.map((specialty) => (
+                <option key={specialty} value={specialty}>
+                  {specialty}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="ui-field">
+            <label htmlFor={`${scope}-specialist`}>Profesional</label>
+            <select
+              id={`${scope}-specialist`}
+              className="ui-select"
+              value={listFilters.specialist}
+              onChange={(event) => updateFilters({ specialist: event.target.value })}
+            >
+              <option value="">Todos</option>
+              {appointmentFilterOptions.specialists.map((specialist) => (
+                <option key={specialist} value={specialist}>
+                  {specialist}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isPendingScope ? (
+            <div className="ui-field">
+              <label htmlFor="pending-sort">Ordenar por</label>
+              <select
+                id="pending-sort"
+                className="ui-select"
+                value={pendingSort}
+                onChange={(event) => setPendingSort(event.target.value)}
+              >
+                {PENDING_SORT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="ui-field">
+              <label htmlFor="assigned-status">Estado</label>
+              <select
+                id="assigned-status"
+                className="ui-select"
+                value={listFilters.status}
+                onChange={(event) => updateFilters({ status: event.target.value })}
+              >
+                <option value="all">Todas</option>
+                <option value="booked">Confirmadas</option>
+                <option value="prebooked">Por confirmar</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="admin-filter-row">
+          <div className="admin-filter-chips" role="group" aria-label="Fecha de la cita">
+            {DATE_RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`ui-chip-option ${listFilters.range === option.id ? 'ui-chip-option-active' : ''}`}
+                aria-pressed={listFilters.range === option.id}
+                onClick={() => updateFilters({ range: option.id })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {listFilters.range === 'custom' ? (
+            <div className="admin-filter-dates">
+              <input
+                type="date"
+                className="ui-input"
+                aria-label="Desde"
+                value={listFilters.from}
+                onChange={(event) => updateFilters({ from: event.target.value })}
+              />
+              <span>a</span>
+              <input
+                type="date"
+                className="ui-input"
+                aria-label="Hasta"
+                value={listFilters.to}
+                min={listFilters.from || undefined}
+                onChange={(event) => updateFilters({ to: event.target.value })}
+              />
+            </div>
+          ) : null}
+
+          {active ? (
+            <button
+              type="button"
+              className="ui-btn ui-btn-sm ui-btn-ghost admin-filter-clear"
+              onClick={() => setListFilters(EMPTY_LIST_FILTERS)}
+            >
+              <Icon name="x" />
+              Limpiar filtros
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderResultCount(shown, total, active) {
+    return (
+      <p className="ui-hint">
+        {active
+          ? `${shown} de ${total} cita(s) con los filtros actuales, dentro de la ${monthLabel}.`
+          : `${total} cita(s) en la ${monthLabel}.`}
+      </p>
+    );
+  }
+
   function renderPendientes() {
     if (!pendingAppointments.length) {
       return renderEmpty(
@@ -1432,8 +1756,17 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     }
 
     return (
-      <div className="admin-list">
-        {pendingAppointments.map((appointment) => renderAppointmentCard(appointment, 'pending'))}
+      <div className="admin-section">
+        {renderListFilters('pendientes')}
+        {renderResultCount(filteredPendingAppointments.length, pendingAppointments.length, hasPendingFilters)}
+
+        {filteredPendingAppointments.length ? (
+          <div className="admin-list">
+            {filteredPendingAppointments.map((appointment) => renderAppointmentCard(appointment, 'pending'))}
+          </div>
+        ) : (
+          renderEmpty('search', 'Sin resultados', 'Prueba con otra búsqueda o limpia los filtros.')
+        )}
       </div>
     );
   }
@@ -1441,57 +1774,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
   function renderAsignadas() {
     return (
       <div className="admin-section">
-        <div className="ui-card ui-card-body">
-          <form className="admin-filters" onSubmit={(event) => event.preventDefault()}>
-            <div className="ui-field">
-              <label htmlFor="assigned-cedula-filter">Buscar por cédula</label>
-              <div className="ui-input-icon">
-                <Icon name="search" />
-                <input
-                  id="assigned-cedula-filter"
-                  className="ui-input"
-                  inputMode="numeric"
-                  value={assignedFilters.cedula}
-                  onChange={(event) =>
-                    setAssignedFilters((current) => ({ ...current, cedula: event.target.value }))
-                  }
-                  placeholder="Ej. 1023899033"
-                />
-              </div>
-            </div>
-
-            <div className="ui-field">
-              <label htmlFor="assigned-status-filter">Estado</label>
-              <select
-                id="assigned-status-filter"
-                className="ui-select"
-                value={assignedFilters.status}
-                onChange={(event) =>
-                  setAssignedFilters((current) => ({ ...current, status: event.target.value }))
-                }
-              >
-                <option value="all">Todas</option>
-                <option value="booked">Confirmadas</option>
-                <option value="prebooked">Por confirmar</option>
-              </select>
-            </div>
-
-            {hasAssignedFilters ? (
-              <button
-                type="button"
-                className="ui-btn ui-btn-ghost"
-                onClick={() => setAssignedFilters({ cedula: '', status: 'all' })}
-              >
-                Limpiar filtros
-              </button>
-            ) : null}
-          </form>
-        </div>
-
-        <p className="ui-hint">
-          {filteredScheduledAppointments.length} cita(s)
-          {hasAssignedFilters ? ' con los filtros actuales' : ` en la ${monthLabel}`}.
-        </p>
+        {renderListFilters('asignadas')}
+        {renderResultCount(filteredScheduledAppointments.length, scheduledAppointments.length, hasAssignedFilters)}
 
         {paginatedScheduledAppointments.length ? (
           <div className="admin-list">
@@ -1503,7 +1787,7 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
           renderEmpty(
             'search',
             hasAssignedFilters ? 'Sin resultados' : 'Aún no hay citas este mes',
-            hasAssignedFilters ? 'Prueba con otra cédula o cambia el estado.' : null
+            hasAssignedFilters ? 'Prueba con otra búsqueda o limpia los filtros.' : null
           )
         )}
 

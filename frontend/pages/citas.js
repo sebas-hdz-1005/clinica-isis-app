@@ -3,6 +3,11 @@ import Icon from '../components/Icon';
 import SiteLayout from '../components/SiteLayout';
 
 const SEARCH_WINDOW_DAYS = 14;
+// Con "Cualquier profesional" se consulta la agenda de cada medico: ventana mas corta
+// y pocas consultas a la vez para no saturar Software Medico.
+const ANY_DOCTOR_WINDOW_DAYS = 7;
+const ANY_DOCTOR_CONCURRENCY = 3;
+const ANY_DOCTOR = { id: 'any' };
 const SAVED_CEDULA_KEY = 'clinica-isis-cedula';
 const STEPS = ['Especialidad', 'Médico y horario', 'Tus datos'];
 
@@ -66,8 +71,23 @@ function formatTime(time) {
   }).format(new Date(Date.UTC(2000, 0, 1, Number(hours), Number(minutes))));
 }
 
+function agendaPath(specialtyId, doctorId, start, days) {
+  const params = new URLSearchParams({
+    especialidadId: specialtyId,
+    medicoId: doctorId,
+    fechaInicio: start,
+    fechaFin: addDays(start, days - 1)
+  });
+  return `/api/agenda/disponible?${params.toString()}`;
+}
+
 function doctorName(doctor) {
   return [doctor?.first_name, doctor?.last_name].filter(Boolean).join(' ').trim() || 'Médico';
+}
+
+// Sin el paréntesis de la especialidad, para que quepa debajo de la hora.
+function shortDoctorName(doctor) {
+  return doctorName(doctor).replace(/\s*\([^)]*\)\s*$/, '');
 }
 
 function formatStatus(status) {
@@ -203,17 +223,22 @@ export default function CitasPage() {
   const [specialty, setSpecialty] = useState(null);
   const [doctor, setDoctor] = useState(null);
   const [rangeStart, setRangeStart] = useState(() => bogotaNow().date);
-  const [agenda, setAgenda] = useState(null);
+  // Una entrada por medico consultado: { doctor, data }.
+  const [agendaResults, setAgendaResults] = useState([]);
+  const [agendaProgress, setAgendaProgress] = useState({ done: 0, total: 0 });
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [agendaError, setAgendaError] = useState('');
   const [slot, setSlot] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
+  const [dateTouched, setDateTouched] = useState(false);
   const [patient, setPatient] = useState({ cedula: '', name: '', phone: '', email: '' });
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [confirmation, setConfirmation] = useState('');
 
   const step = !specialty ? 0 : !slot ? 1 : 2;
+  const isAnyDoctor = doctor?.id === ANY_DOCTOR.id;
+  const windowDays = isAnyDoctor ? ANY_DOCTOR_WINDOW_DAYS : SEARCH_WINDOW_DAYS;
 
   useEffect(() => {
     requestJson('/api/especialidades')
@@ -233,34 +258,45 @@ export default function CitasPage() {
 
   useEffect(() => {
     if (!specialty || !doctor) {
-      setAgenda(null);
-      return;
+      setAgendaResults([]);
+      return undefined;
     }
 
     let cancelled = false;
-    const params = new URLSearchParams({
-      especialidadId: specialty.id,
-      medicoId: doctor.id,
-      fechaInicio: rangeStart,
-      fechaFin: addDays(rangeStart, SEARCH_WINDOW_DAYS - 1)
-    });
+    const doctors = isAnyDoctor ? specialty.medicos : [doctor];
+    const queue = [...doctors];
+    let failures = 0;
+    let lastError = '';
 
     setAgendaLoading(true);
     setAgendaError('');
+    setAgendaResults([]);
+    setAgendaProgress({ done: 0, total: doctors.length });
     setSlot(null);
-    requestJson(`/api/agenda/disponible?${params.toString()}`)
-      .then((data) => {
-        if (!cancelled) setAgenda(data);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setAgenda(null);
-          setAgendaError(error.message);
+    setDateTouched(false);
+
+    // Los resultados se muestran a medida que llega cada agenda.
+    const worker = async () => {
+      while (queue.length && !cancelled) {
+        const item = queue.shift();
+        try {
+          const data = await requestJson(agendaPath(specialty.id, item.id, rangeStart, windowDays));
+          if (!cancelled) setAgendaResults((current) => [...current, { doctor: item, data }]);
+        } catch (error) {
+          failures += 1;
+          lastError = error.message;
         }
-      })
-      .finally(() => {
-        if (!cancelled) setAgendaLoading(false);
-      });
+        if (!cancelled) setAgendaProgress((current) => ({ ...current, done: current.done + 1 }));
+      }
+    };
+
+    Promise.all(
+      Array.from({ length: Math.min(ANY_DOCTOR_CONCURRENCY, doctors.length) }, () => worker())
+    ).then(() => {
+      if (cancelled) return;
+      if (failures === doctors.length) setAgendaError(lastError);
+      setAgendaLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -282,27 +318,52 @@ export default function CitasPage() {
     );
   }, [specialties, specialtySearch]);
 
+  // Combina las agendas: por dia y hora, los medicos libres en el orden del catalogo.
   const availableDays = useMemo(() => {
     const now = bogotaNow();
-    return (agenda?.disponibilidad || [])
-      .map((day) => ({
-        ...day,
-        horarios: day.horarios.filter((hora) => day.fecha > now.date || (day.fecha === now.date && hora > now.time))
-      }))
-      .filter((day) => day.horarios.length);
-  }, [agenda]);
+    const order = new Map((specialty?.medicos || []).map((item, index) => [String(item.id), index]));
+    const byDate = new Map();
+
+    for (const { doctor: item, data } of agendaResults) {
+      for (const day of data?.disponibilidad || []) {
+        for (const hora of day.horarios) {
+          if (day.fecha < now.date || (day.fecha === now.date && hora <= now.time)) continue;
+          const times = byDate.get(day.fecha) || new Map();
+          const options = times.get(hora) || [];
+          options.push({ doctor: item, citaTipoId: data.cita_tipo_id, sedeId: data.sede_id });
+          times.set(hora, options);
+          byDate.set(day.fecha, times);
+        }
+      }
+    }
+
+    return Array.from(byDate.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([fecha, times]) => ({
+        fecha,
+        horarios: Array.from(times.entries())
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([hora, options]) => ({
+            hora,
+            options: options.sort(
+              (left, right) => order.get(String(left.doctor.id)) - order.get(String(right.doctor.id))
+            )
+          }))
+      }));
+  }, [agendaResults, specialty]);
 
   useEffect(() => {
-    if (!availableDays.some((day) => day.fecha === selectedDate)) {
+    // Mientras el paciente no elija un dia, se muestra siempre el primero disponible.
+    if (!dateTouched || !availableDays.some((day) => day.fecha === selectedDate)) {
       setSelectedDate(availableDays[0]?.fecha || '');
     }
-  }, [availableDays, selectedDate]);
+  }, [availableDays, selectedDate, dateTouched]);
 
   const selectedDay = availableDays.find((day) => day.fecha === selectedDate);
 
   function chooseSpecialty(item) {
     setSpecialty(item);
-    setDoctor(item.medicos.length === 1 ? item.medicos[0] : null);
+    setDoctor(item.medicos.length === 1 ? item.medicos[0] : ANY_DOCTOR);
     setRangeStart(bogotaNow().date);
     setSlot(null);
     setConfirmation('');
@@ -336,10 +397,10 @@ export default function CitasPage() {
         body: JSON.stringify({
           tipo_documento: 'CC',
           numero_documento: cedula,
-          tipo: Number(agenda?.cita_tipo_id || 1),
-          consultorios_id: Number(agenda?.sede_id || 1),
+          tipo: Number(slot.citaTipoId || 1),
+          consultorios_id: Number(slot.sedeId || 1),
           especialidades_id: Number(specialty.id),
-          medico_id: Number(doctor.id),
+          medico_id: Number(slot.doctor.id),
           fecha_estimada: slot.fecha,
           hora_estimada: `${slot.hora}:00`,
           observacion_solicitud: 'Solicitud desde el agendamiento web',
@@ -441,14 +502,14 @@ export default function CitasPage() {
 
   function renderScheduleStep() {
     const today = bogotaNow().date;
-    const rangeEnd = addDays(rangeStart, SEARCH_WINDOW_DAYS - 1);
+    const rangeEnd = addDays(rangeStart, windowDays - 1);
 
     return (
       <section className="ui-card">
         <div className="ui-card-header">
           <div>
             <h2>{specialty.nombre}</h2>
-            <p>Elige el profesional y luego un horario disponible.</p>
+            <p>Elige un horario disponible. Si no tienes preferencia, te mostramos el de todos los profesionales.</p>
           </div>
           <button type="button" className="ui-btn ui-btn-sm ui-btn-ghost" onClick={resetFlow}>
             <Icon name="arrowLeft" />
@@ -459,6 +520,17 @@ export default function CitasPage() {
           <div>
             <p className="booking-group-title">Profesional</p>
             <div className="booking-doctors" role="radiogroup" aria-label="Profesional">
+              {specialty.medicos.length > 1 ? (
+                <label className={`ui-chip-option ${isAnyDoctor ? 'ui-chip-option-active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="doctor"
+                    checked={isAnyDoctor}
+                    onChange={() => setDoctor(ANY_DOCTOR)}
+                  />
+                  Cualquier profesional
+                </label>
+              ) : null}
               {specialty.medicos.map((item) => (
                 <label
                   key={item.id}
@@ -489,7 +561,7 @@ export default function CitasPage() {
                     className="ui-btn ui-btn-sm ui-btn-secondary"
                     disabled={rangeStart <= today || agendaLoading}
                     onClick={() => setRangeStart((current) => {
-                      const previous = addDays(current, -SEARCH_WINDOW_DAYS);
+                      const previous = addDays(current, -windowDays);
                       return previous < today ? today : previous;
                     })}
                   >
@@ -500,7 +572,7 @@ export default function CitasPage() {
                     type="button"
                     className="ui-btn ui-btn-sm ui-btn-secondary"
                     disabled={agendaLoading}
-                    onClick={() => setRangeStart((current) => addDays(current, SEARCH_WINDOW_DAYS))}
+                    onClick={() => setRangeStart((current) => addDays(current, windowDays))}
                   >
                     Siguientes
                     <Icon name="arrowRight" />
@@ -509,11 +581,17 @@ export default function CitasPage() {
               </div>
 
               {agendaLoading ? (
-                <div className="booking-stack">
+                <div className="booking-stack booking-agenda-loading">
                   <div className="ui-progress" />
-                  <p className="ui-hint">Consultando la agenda de {doctorName(doctor)}...</p>
+                  <p className="ui-hint">
+                    {isAnyDoctor
+                      ? `Consultando agendas (${agendaProgress.done} de ${agendaProgress.total} profesionales)...`
+                      : `Consultando la agenda de ${doctorName(doctor)}...`}
+                  </p>
                 </div>
-              ) : agendaError ? (
+              ) : null}
+
+              {agendaError ? (
                 <p className="ui-alert" role="alert">
                   <Icon name="alert" />
                   {agendaError}
@@ -528,7 +606,10 @@ export default function CitasPage() {
                         role="tab"
                         aria-selected={day.fecha === selectedDate}
                         className={`booking-date ${day.fecha === selectedDate ? 'booking-date-active' : ''}`}
-                        onClick={() => setSelectedDate(day.fecha)}
+                        onClick={() => {
+                          setSelectedDate(day.fecha);
+                          setDateTouched(true);
+                        }}
                       >
                         <small>{formatDay(day.fecha, { weekday: 'short' })}</small>
                         <strong>{formatDay(day.fecha, { day: 'numeric' })}</strong>
@@ -543,28 +624,39 @@ export default function CitasPage() {
                         {formatDay(selectedDay.fecha)} · {selectedDay.horarios.length}{' '}
                         {selectedDay.horarios.length === 1 ? 'horario' : 'horarios'}
                       </h4>
-                      <div className="booking-times">
-                        {selectedDay.horarios.map((hora) => (
+                      <div className={`booking-times ${isAnyDoctor ? 'booking-times-detailed' : ''}`}>
+                        {selectedDay.horarios.map(({ hora, options }) => (
                           <button
                             key={hora}
                             type="button"
-                            className="booking-time"
-                            onClick={() => setSlot({ fecha: selectedDay.fecha, hora })}
+                            className={`booking-time ${isAnyDoctor ? 'booking-time-detailed' : ''}`}
+                            onClick={() => setSlot({ fecha: selectedDay.fecha, hora, ...options[0] })}
                           >
                             {formatTime(hora)}
+                            {isAnyDoctor ? (
+                              <small>
+                                {options.length === 1
+                                  ? shortDoctorName(options[0].doctor)
+                                  : `${options.length} profesionales`}
+                              </small>
+                            ) : null}
                           </button>
                         ))}
                       </div>
                     </div>
                   ) : null}
                 </div>
-              ) : (
+              ) : !agendaLoading ? (
                 <div className="ui-empty">
                   <Icon name="calendar" />
                   <strong>Sin horarios en estas fechas</strong>
-                  <p>Prueba con las siguientes dos semanas o elige otro profesional.</p>
+                  <p>
+                    {isAnyDoctor
+                      ? 'Prueba con las siguientes fechas.'
+                      : 'Prueba con las siguientes fechas o elige otro profesional.'}
+                  </p>
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <p className="ui-hint">Selecciona un profesional para ver su agenda.</p>
@@ -669,7 +761,9 @@ export default function CitasPage() {
           </div>
           <div>
             <dt>Profesional</dt>
-            <dd>{doctor ? doctorName(doctor) : 'Por elegir'}</dd>
+            <dd>
+              {slot ? doctorName(slot.doctor) : isAnyDoctor ? 'Cualquier profesional' : doctor ? doctorName(doctor) : 'Por elegir'}
+            </dd>
           </div>
           <div>
             <dt>Fecha y hora</dt>
@@ -700,7 +794,7 @@ export default function CitasPage() {
                 {slot ? (
                   <p>
                     <strong>
-                      {specialty.nombre} · {doctorName(doctor)} · {formatDay(slot.fecha)}, {formatTime(slot.hora)}
+                      {specialty.nombre} · {doctorName(slot.doctor)} · {formatDay(slot.fecha)}, {formatTime(slot.hora)}
                     </strong>
                   </p>
                 ) : null}

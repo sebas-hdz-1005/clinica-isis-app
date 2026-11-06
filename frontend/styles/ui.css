@@ -1048,6 +1048,34 @@
   border-color: var(--accent);
 }
 
+.booking-times-detailed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.booking-time-detailed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.booking-time-detailed small {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-agenda-loading {
+  margin-bottom: 14px;
+}
+
 .booking-time-active {
   border-color: var(--accent-strong);
   background: var(--accent-strong);
@@ -1498,6 +1526,55 @@
   flex: 1 1 200px;
 }
 
+.admin-filter-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-filter-panel .admin-filters .ui-field {
+  flex: 1 1 160px;
+}
+
+.admin-filter-panel .admin-filters .admin-filter-search {
+  flex: 2 1 300px;
+}
+
+.admin-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.admin-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.ui-chip-option {
+  font-family: inherit;
+}
+
+.admin-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.admin-filter-dates .ui-input {
+  width: auto;
+  min-height: 38px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.admin-filter-clear {
+  margin-left: auto;
+}
+
 .admin-list {
   display: grid;
   gap: 12px;
@@ -1526,6 +1603,23 @@
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.admin-appt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.admin-appt-chips .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.admin-appt-head .admin-appt-requested {
+  color: var(--muted-soft);
+  font-size: 0.8rem;
 }
 
 .admin-appt-specialty {
@@ -2213,6 +2307,23 @@
 
   .admin-appt-head {
     flex-direction: column;
+  }
+
+  .admin-appt-chips {
+    justify-content: flex-start;
+  }
+
+  .admin-filter-dates {
+    width: 100%;
+  }
+
+  .admin-filter-dates .ui-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .admin-filter-clear {
+    margin-left: 0;
   }
 
   .admin-appt-actions .ui-btn {
