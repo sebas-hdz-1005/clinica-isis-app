@@ -32,7 +32,7 @@ export default function HomePage() {
       <section className="home-hero">
         <div className="site-container">
           <p className="home-eyebrow">
-            <Icon name="stethoscope" />
+            <img src="/logo-corazon.png" alt="" className="home-eyebrow-logo" />
             Clínica Isis
           </p>
           <h1>

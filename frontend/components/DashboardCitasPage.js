@@ -2501,13 +2501,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
       <main className="admin-login">
         <section className="ui-card admin-login-card">
           <div className="admin-brand">
-            <span className="site-logo">
-              <Icon name="logo" />
-            </span>
-            <div>
-              <strong>Clínica Isis</strong>
-              <small>Panel administrativo</small>
-            </div>
+            <img src="/logo-clinica-isis.png" alt="Clínica Isis" className="admin-brand-logo" />
+            <small>Panel administrativo</small>
           </div>
 
           <h1>Iniciar sesión</h1>
@@ -2584,13 +2579,8 @@ export default function DashboardCitasPage({ homeHref = '/', showHomeLink = true
     <div className="admin-app">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <span className="site-logo">
-            <Icon name="logo" />
-          </span>
-          <div>
-            <strong>Clínica Isis</strong>
-            <small>Panel administrativo</small>
-          </div>
+          <img src="/logo-clinica-isis.png" alt="Clínica Isis" className="admin-brand-logo" />
+          <small>Panel administrativo</small>
         </div>
 
         <nav className="admin-nav" aria-label="Secciones del panel">

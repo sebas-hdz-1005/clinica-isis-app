@@ -20,11 +20,8 @@ export default function SiteLayout({ title, children }) {
 
       <header className="site-header">
         <div className="site-header-inner">
-          <Link href="/" className="site-brand">
-            <span className="site-logo">
-              <Icon name="logo" />
-            </span>
-            Clínica Isis
+          <Link href="/" className="site-brand" aria-label="Clínica Isis, inicio">
+            <img src="/logo-clinica-isis.png" alt="Clínica Isis" className="site-brand-logo" />
           </Link>
 
           <nav className="site-nav" aria-label="Principal">
