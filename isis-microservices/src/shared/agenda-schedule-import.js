@@ -105,9 +105,23 @@ const sessionLabel = (text) => {
   return "";
 };
 
+// "12:00 a 01:00 pm" -> "12:00 pm a 01:00 pm": el inicio sin am/pm toma el del fin,
+// o el contrario si asi quedaria despues del fin ("11 a 1 pm" -> 11 am).
+const MISSING_MERIDIEM =
+  /(?<![\d:])(\d{1,2})(\s*:\s*\d{1,2})?(?!\s*[ap]\s*\.?\s*m\b)(\s*(?:a|-|–|hasta)\s*)(?=(\d{1,2})(?:\s*:\s*(\d{1,2}))?\s*([ap])\s*\.?\s*m\b)/gi;
+
+const fillMissingMeridiem = (text) =>
+  text.replace(MISSING_MERIDIEM, (match, hours, minutes = "", separator, endHours, endMinutes, endMeridiem) => {
+    const startMinutes = (meridiem) => Number(toTime(hours, minutes.replace(/\D/g, ""), meridiem).replace(":", ""));
+    const end = Number(toTime(endHours, endMinutes, endMeridiem).replace(":", ""));
+    const other = endMeridiem.toLowerCase() === "p" ? "a" : "p";
+    const meridiem = startMinutes(endMeridiem) < end ? endMeridiem : other;
+    return `${hours}${minutes} ${meridiem}m${separator}`;
+  });
+
 // "Controles de 04:00 pm a 05:00 pm Valoraciones de: 05:00 pm a 07:00 pm" -> dos franjas.
 export const parseTimeRanges = (value, defaultTipo = "") => {
-  const text = String(value ?? "");
+  const text = fillMissingMeridiem(String(value ?? ""));
   const tokens = Array.from(text.matchAll(TIME_TOKEN));
   const ranges = [];
   let cursor = 0;

@@ -26,6 +26,8 @@ test("parseTimeRanges reads the clinic's time formats", () => {
   assert.deepEqual(parseTimeRanges("01:00 p. m. – 04:00 p. m."), [{ inicio: "13:00", fin: "16:00" }]);
   assert.deepEqual(parseTimeRanges("05:00 pm a 07: 30 pm "), [{ inicio: "17:00", fin: "19:30" }]);
   assert.deepEqual(parseTimeRanges("08:0 am a 02:00 pm "), [{ inicio: "08:00", fin: "14:00" }]);
+  assert.deepEqual(parseTimeRanges("Almuerzo de 12:00 a  01:00 pm "), [{ inicio: "12:00", fin: "13:00" }]);
+  assert.deepEqual(parseTimeRanges("11 a 1 pm"), [{ inicio: "11:00", fin: "13:00" }]);
   assert.deepEqual(
     parseTimeRanges("Controles de 04:00 pm a 05:00 pm \nValoraciones de:  05:00 pm a 07:00 pm "),
     [
